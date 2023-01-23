@@ -18,14 +18,17 @@ At the VUB, the group is linked to Structural Biology Brussels at the Bioenginee
 
 ## Available pipelines
 
-### bio2Byte - Biophysical features
+### bio2Byte - Biophysical features predicted from sequence only
 
 Options:
 
-- single sequence: `--command`
-- msa: `--command`
+- single sequence: `--sseq`
+- multiple sequence alignment: `--msa`
 - predictors:
   - Backbone dynamics: `--dynamine`
+  - Early folding regions: `--efoldmine`
+  - Disordered regions: `--disomine`
+  - Regions prone to Beta-aggregation: `--agamata`
 
 Command example:
 
