@@ -7,12 +7,15 @@
 params.dynamine = false
 params.efoldmine = false
 params.disomine = false
-params.agamata = false
+params.agmata = false
+
+params.msa = false
+params.align_for_msa = false
 
 // sequence file
 
 params.targetSequences = "$launchDir/example.fasta"
-params.groupBy =2
+params.groupBy =10
 
 targetSequencesFile = file(params.targetSequences)
 allSequences = Channel.fromPath(params.targetSequences)
@@ -55,6 +58,8 @@ process buildPhilogeneticTree {
 }
 
 process buildLogo {
+
+    publishDir "results", mode: 'copy'
     input:
     path multipleSequenceAlignment
 
@@ -68,7 +73,8 @@ process buildLogo {
 }
 
 
-process renderTree {
+process renderTreeNEW {
+    publishDir "results", mode: 'copy'
     input:
     path tree
 
@@ -77,18 +83,41 @@ process renderTree {
 
     script:
     """
+    #!/miniconda/bin/python
+
+
+    from ete3 import Tree
+
+    t = Tree('$tree')
+    t.render("mytree.png", w=183, units="mm")
+
+    """
+  }
+
+
+process renderTree {
+  publishDir "results", mode: 'copy'
+  input:
+    path tree
+
+    output:
+    path "tree.png", emit: treePlot
+
+    script:
+    """
     #!/usr/bin/env Rscript
-    dir.create(Sys.getenv("R_LIBS_USER"), recursive = TRUE)  # create personal library
-    .libPaths(Sys.getenv("R_LIBS_USER"))  # add to the path
+    tempLibPath <- tempdir()
+    dir.create(tempLibPath) # create personal library
+    .libPaths(tempLibPath)  # add to the path
     install.packages("ape")  # install like always
     library(ape)  # use library like always
+
     mytr <- read.tree("$tree")
     png("tree.png")
     plot(mytr)
     dev.off()
     """
 }
-
 
 process predictBiophysicalFeatures {
     tag "${sequences.baseName}"
@@ -101,11 +130,12 @@ process predictBiophysicalFeatures {
 
     script:
     """
-    python -m b2bTools  ${params.dynamine ? '-dynamine' : ''} ${params.efoldmine ? '-efoldmine' : ''} ${params.disomine ? '-disomine' : ''} ${params.agamata ? '-agamata' : ''} -file $sequences -output ${sequences}.json -identifier test
+    python -m b2bTools  ${params.dynamine ? '-dynamine' : ''} ${params.efoldmine ? '-efoldmine' : ''} ${params.disomine ? '-disomine' : ''} ${params.agmata ? '-agmata' : ''} -file $sequences -output ${sequences}.json -identifier test
     """
 }
 
 process plotBiophysicalFeatures {
+    publishDir "results", mode: 'copy'
     tag "${predictions.baseName}"
 
     input:
@@ -265,24 +295,24 @@ process compressPredictions {
     input:
     path predictions
     path plots
-    path agmata_plots
+    //path agmata_plots
 
     path multipleSequenceAlignment
     path tree
     path treePlot
     path logo
 
-    path pdbStructures
+  //  path pdbStructures
 
     output:
     path "*.tar.gz"
 
     script:
     """
-    tar -czvhf ${multipleSequenceAlignment.simpleName}.tar.gz $tree $treePlot $multipleSequenceAlignment $logo $predictions $plots $agmata_plots $pdbStructures
+    tar -czvhf ${multipleSequenceAlignment.simpleName}.tar.gz $tree $treePlot $multipleSequenceAlignment $logo $predictions $plots
     """
+    //tar -czvhf ${multipleSequenceAlignment.simpleName}.tar.gz $tree $treePlot $multipleSequenceAlignment $logo $predictions $plots $agmata_plots $pdbStructures
 }
-
 
 process sSeqPredictBiophysicalFeatures {
     tag "${sequences.baseName}"
@@ -304,7 +334,7 @@ process sSeqPredictBiophysicalFeatures {
     single_seq = SingleSeq("$sequences")
 
 
-    tool_list = ['${params.dynamine ? 'dynamine' : ''}', '${params.efoldmine ? 'efoldmine' : ''}', '${params.disomine ? 'disomine' : ''}', '${params.agamata ? 'agamata' : ''}']
+    tool_list = ['${params.dynamine ? 'dynamine' : ''}', '${params.efoldmine ? 'efoldmine' : ''}', '${params.disomine ? 'disomine' : ''}', '${params.agmata ? 'agmata' : ''}']
     tool_list=[x for x in tool_list if x]
 
 
@@ -318,7 +348,7 @@ process sSeqPredictBiophysicalFeatures {
             seq_len = len(prediction['seq'])
             avg_backbone = average(prediction['backbone'])
             avg_coil = average(prediction['coil'])
-          #  avg_disoMine = average(prediction['disoMine'])
+            avg_disoMine = average(prediction['disoMine'])
             avg_earlyFolding = average(prediction['earlyFolding'])
             avg_helix = average(prediction['helix'])
             avg_ppII = average(prediction['ppII'])
@@ -373,17 +403,26 @@ workflow multipleSequenceAlignmentAnalysis {
     allSequences
 
     main:
-    createMultipleSequenceAlignment(allSequences)
-    buildPhilogeneticTree(createMultipleSequenceAlignment.out.multipleSequenceAlignment)
+    if (params.align_for_msa == true){
+      createMultipleSequenceAlignment(allSequences)
+      buildPhilogeneticTree(createMultipleSequenceAlignment.out.multipleSequenceAlignment)
+      buildLogo(createMultipleSequenceAlignment.out.multipleSequenceAlignment)
+    }
+    else {
+      buildPhilogeneticTree(allSequences)
+      buildLogo(allSequences)
+    }
+
     renderTree(buildPhilogeneticTree.out.tree)
 
-    buildLogo(createMultipleSequenceAlignment.out.multipleSequenceAlignment)
-
     emit:
-    multipleSequenceAlignment = createMultipleSequenceAlignment.out.multipleSequenceAlignment
+
     tree = buildPhilogeneticTree.out.tree
     treePlot = renderTree.out.treePlot
     logo = buildLogo.out.logo
+
+    multipleSequenceAlignment = createMultipleSequenceAlignment.out.multipleSequenceAlignment //, optional: true
+
 }
 
 workflow b2bToolsAnalysis {
@@ -393,43 +432,48 @@ workflow b2bToolsAnalysis {
     main:
     predictBiophysicalFeatures(sequencesGrouped)
     plotBiophysicalFeatures(predictBiophysicalFeatures.out.predictions)
-    plotAgmata(predictBiophysicalFeatures.out.predictions)
+    //plotAgmata(predictBiophysicalFeatures.out.predictions)
 
     emit:
     predictions = predictBiophysicalFeatures.out.predictions
     plots = plotBiophysicalFeatures.out.plots
-    agmata_plots = plotAgmata.out.plots
+    //agmata_plots = plotAgmata.out.plots
 }
 
 workflow {
-    // sseq workflow
-    sSeqB2bToolsAnalysis(sequencesGrouped)
 
-    // add single sequence OR msa OR if len of lines differ make msa
-    // sseq Main workflow
-    sSeqCompressPredictions(
-        b2bToolsAnalysis.out.predictions.collect(),
-        b2bToolsAnalysis.out.indexes.collectFile(name: "${targetSequencesFile.baseName}.index", keepHeader: true)
 
+    if (params.msa == false) {
+      sSeqB2bToolsAnalysis(sequencesGrouped)
+
+      // add single sequence OR msa OR if len of lines differ make msa
+      // sseq Main workflow
+      sSeqCompressPredictions(
+          sSeqB2bToolsAnalysis.out.predictions.collect(),
+          sSeqB2bToolsAnalysis.out.indexes.collectFile(name: "${targetSequencesFile.baseName}.index", keepHeader: true)
+      )
+    }
+    else {
     // First sub-workflow
     multipleSequenceAlignmentAnalysis(allSequences)
     // Second sub-workflow
     b2bToolsAnalysis(sequencesGrouped)
 
     // Third sub-workflow
-    fetchStructure(allSequences.splitFasta(record: [id: true, seqString: true ]).filter { record -> record.seqString.length() < 400 })
+  //  fetchStructure(allSequences.splitFasta(record: [id: true, seqString: true ]).filter { record -> record.seqString.length() < 400 })
 
     // Main workflow
     compressPredictions(
         b2bToolsAnalysis.out.predictions.collect(),
         b2bToolsAnalysis.out.plots.collect(),
-        b2bToolsAnalysis.out.agmata_plots.collect(),
+        //b2bToolsAnalysis.out.agmata_plots.collect(),
         multipleSequenceAlignmentAnalysis.out.multipleSequenceAlignment,
         multipleSequenceAlignmentAnalysis.out.tree,
         multipleSequenceAlignmentAnalysis.out.treePlot,
         multipleSequenceAlignmentAnalysis.out.logo,
-        fetchStructure.out.pdbStructures.collect()
-    )
+      //  fetchStructure.out.pdbStructures.collect()
+        )
+    }
 }
 
 
