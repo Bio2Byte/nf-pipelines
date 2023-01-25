@@ -1,6 +1,9 @@
 #!/usr/bin/env nextflow
 // USAGE: nextflow run main.nf -resume -with-dag pipeline.png
 
+
+//USAGE: nextflow run main.nf  --targetSequences ../../example.fasta -profile standard,withdocker --dynamine --efoldmine --disomine --align_for_msa --msa
+
 // set potential b2bTools
 // watch index file! if disomine, efmine turned off it still wants to plot them, causes error
 
@@ -38,13 +41,33 @@ process createMultipleSequenceAlignment {
     output:
     path "*.msa", emit: multipleSequenceAlignment
 
+    when:
+    params.align_for_msa == true
+
     script:
     """
     clustalo -i $sequences -o ${sequences}.msa
     """
 }
 
-process buildPhilogeneticTree {
+process takeMultipleSequenceAlignment {
+    input:
+    path sequences
+
+    output:
+    path "*.msa", emit: multipleSequenceAlignment
+
+    when:
+    params.align_for_msa == false
+
+    script:
+    """ 
+    cp $sequences ${sequences}.msa 
+    """
+
+}
+
+process buildPhylogeneticTree {
     input:
     path multipleSequenceAlignment
 
@@ -73,31 +96,9 @@ process buildLogo {
 }
 
 
-process renderTreeNEW {
+process renderTree {
     publishDir "results", mode: 'copy'
     input:
-    path tree
-
-    output:
-    path "tree.png", emit: treePlot
-
-    script:
-    """
-    #!/miniconda/bin/python
-
-
-    from ete3 import Tree
-
-    t = Tree('$tree')
-    t.render("mytree.png", w=183, units="mm")
-
-    """
-  }
-
-
-process renderTree {
-  publishDir "results", mode: 'copy'
-  input:
     path tree
 
     output:
@@ -171,7 +172,7 @@ process plotBiophysicalFeatures {
         ppII_pred = prediction['ppII']
         helix_pred = prediction['helix']
         sidechain_pred = prediction['sidechain']
-        disomine_pred = prediction['disoMine']
+       # disomine_pred = prediction['disoMine']
         earlyFolding_pred = prediction['earlyFolding']
         ax1.plot(x_position, backbone_pred, label="Backbone")
         ax2.plot(x_position, sidechain_pred, label="Side chain")
@@ -179,7 +180,7 @@ process plotBiophysicalFeatures {
         ax4.plot(x_position, sheet_pred, label="Sheet")
         ax5.plot(x_position, ppII_pred, label="ppII")
         ax6.plot(x_position, helix_pred, label="Helix")
-        ax7.plot(x_position, disomine_pred, label="Disorder")
+       # ax7.plot(x_position, disomine_pred, label="Disorder")
         ax8.plot(x_position, earlyFolding_pred, label="Early folding")
         ax1.set_title('DynaMine backbone dynamics')
         ax1.set_ylim([-0.2, 1.2])
@@ -229,7 +230,7 @@ process plotBiophysicalFeatures {
         ax7.axhspan(0.169, 1.2, alpha=0.5, color='orange')
         ax7.grid(axis='y')
         ax7.set_xlim([0, len(prediction['sequence']) - 1])
-        ax8.set_title('Disorder (disoMine)')
+      #  ax8.set_title('Disorder (disoMine)')
         ax8.set_ylim([-0.2, 1.2])
         ax8.set_xlabel('residue index')
         ax8.set_ylabel('prediction values')
@@ -348,7 +349,7 @@ process sSeqPredictBiophysicalFeatures {
             seq_len = len(prediction['seq'])
             avg_backbone = average(prediction['backbone'])
             avg_coil = average(prediction['coil'])
-            avg_disoMine = average(prediction['disoMine'])
+          #  avg_disoMine = average(prediction['disoMine'])
             avg_earlyFolding = average(prediction['earlyFolding'])
             avg_helix = average(prediction['helix'])
             avg_ppII = average(prediction['ppII'])
@@ -404,24 +405,25 @@ workflow multipleSequenceAlignmentAnalysis {
 
     main:
     if (params.align_for_msa == true){
-      createMultipleSequenceAlignment(allSequences)
-      buildPhilogeneticTree(createMultipleSequenceAlignment.out.multipleSequenceAlignment)
-      buildLogo(createMultipleSequenceAlignment.out.multipleSequenceAlignment)
+        createMultipleSequenceAlignment(allSequences)
+        multipleSequenceAlignment = createMultipleSequenceAlignment.out.multipleSequenceAlignment 
     }
     else {
-      buildPhilogeneticTree(allSequences)
-      buildLogo(allSequences)
+        takeMultipleSequenceAlignment(allSequences)
+        multipleSequenceAlignment = takeMultipleSequenceAlignment.out.multipleSequenceAlignment 
     }
 
-    renderTree(buildPhilogeneticTree.out.tree)
+    buildPhylogeneticTree(multipleSequenceAlignment)
+    buildLogo(multipleSequenceAlignment)
+    renderTree(buildPhylogeneticTree.out.tree)
 
     emit:
 
-    tree = buildPhilogeneticTree.out.tree
+    multipleSequenceAlignment
+
+    tree = buildPhylogeneticTree.out.tree
     treePlot = renderTree.out.treePlot
     logo = buildLogo.out.logo
-
-    multipleSequenceAlignment = createMultipleSequenceAlignment.out.multipleSequenceAlignment //, optional: true
 
 }
 
@@ -444,35 +446,36 @@ workflow {
 
 
     if (params.msa == false) {
-      sSeqB2bToolsAnalysis(sequencesGrouped)
+        sSeqB2bToolsAnalysis(sequencesGrouped)
 
       // add single sequence OR msa OR if len of lines differ make msa
       // sseq Main workflow
-      sSeqCompressPredictions(
-          sSeqB2bToolsAnalysis.out.predictions.collect(),
-          sSeqB2bToolsAnalysis.out.indexes.collectFile(name: "${targetSequencesFile.baseName}.index", keepHeader: true)
-      )
+        sSeqCompressPredictions(
+            sSeqB2bToolsAnalysis.out.predictions.collect(),
+            sSeqB2bToolsAnalysis.out.indexes.collectFile(name: "${targetSequencesFile.baseName}.index", keepHeader: true)
+        )
     }
     else {
-    // First sub-workflow
-    multipleSequenceAlignmentAnalysis(allSequences)
-    // Second sub-workflow
-    b2bToolsAnalysis(sequencesGrouped)
 
-    // Third sub-workflow
-  //  fetchStructure(allSequences.splitFasta(record: [id: true, seqString: true ]).filter { record -> record.seqString.length() < 400 })
+        // First sub-workflow
+        multipleSequenceAlignmentAnalysis(allSequences)
+        // Second sub-workflow
+        b2bToolsAnalysis(sequencesGrouped)
 
-    // Main workflow
-    compressPredictions(
-        b2bToolsAnalysis.out.predictions.collect(),
-        b2bToolsAnalysis.out.plots.collect(),
-        //b2bToolsAnalysis.out.agmata_plots.collect(),
-        multipleSequenceAlignmentAnalysis.out.multipleSequenceAlignment,
-        multipleSequenceAlignmentAnalysis.out.tree,
-        multipleSequenceAlignmentAnalysis.out.treePlot,
-        multipleSequenceAlignmentAnalysis.out.logo,
-      //  fetchStructure.out.pdbStructures.collect()
-        )
+        // Third sub-workflow
+        //  fetchStructure(allSequences.splitFasta(record: [id: true, seqString: true ]).filter { record -> record.seqString.length() < 400 })
+
+        // Main workflow
+        compressPredictions(
+            b2bToolsAnalysis.out.predictions.collect(),
+            b2bToolsAnalysis.out.plots.collect(),
+            //b2bToolsAnalysis.out.agmata_plots.collect(),
+            multipleSequenceAlignmentAnalysis.out.multipleSequenceAlignment,
+            multipleSequenceAlignmentAnalysis.out.tree,
+            multipleSequenceAlignmentAnalysis.out.treePlot,
+            multipleSequenceAlignmentAnalysis.out.logo,
+        //  fetchStructure.out.pdbStructures.collect()
+            )
     }
 }
 
