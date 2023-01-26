@@ -51,6 +51,8 @@ process createMultipleSequenceAlignment {
 }
 
 process takeMultipleSequenceAlignment {
+
+    publishDir "results", mode: 'copy'
     input:
     path sequences
 
@@ -172,7 +174,7 @@ process plotBiophysicalFeatures {
         ppII_pred = prediction['ppII']
         helix_pred = prediction['helix']
         sidechain_pred = prediction['sidechain']
-       # disomine_pred = prediction['disoMine']
+        #disomine_pred = prediction['disoMine']
         earlyFolding_pred = prediction['earlyFolding']
         ax1.plot(x_position, backbone_pred, label="Backbone")
         ax2.plot(x_position, sidechain_pred, label="Side chain")
@@ -180,7 +182,7 @@ process plotBiophysicalFeatures {
         ax4.plot(x_position, sheet_pred, label="Sheet")
         ax5.plot(x_position, ppII_pred, label="ppII")
         ax6.plot(x_position, helix_pred, label="Helix")
-       # ax7.plot(x_position, disomine_pred, label="Disorder")
+        #ax7.plot(x_position, disomine_pred, label="Disorder")
         ax8.plot(x_position, earlyFolding_pred, label="Early folding")
         ax1.set_title('DynaMine backbone dynamics')
         ax1.set_ylim([-0.2, 1.2])
@@ -230,7 +232,7 @@ process plotBiophysicalFeatures {
         ax7.axhspan(0.169, 1.2, alpha=0.5, color='orange')
         ax7.grid(axis='y')
         ax7.set_xlim([0, len(prediction['sequence']) - 1])
-      #  ax8.set_title('Disorder (disoMine)')
+        ax8.set_title('Disorder (disoMine)')
         ax8.set_ylim([-0.2, 1.2])
         ax8.set_xlabel('residue index')
         ax8.set_ylabel('prediction values')
