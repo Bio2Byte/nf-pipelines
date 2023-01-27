@@ -11,6 +11,8 @@ params.efoldmine = false
 params.disomine = false
 
 params.agmata = false
+params.psper = false
+
 params.fetchEsm = false
 
 params.msa = false
@@ -103,7 +105,7 @@ process buildLogo {
     """
 }
 
-//render tree seems to take longest from all processes?
+
 process renderTree {
     publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
 
@@ -132,7 +134,7 @@ process predictBiophysicalFeatures {
 
     script:
     """
-    python -m b2bTools  ${params.dynamine ? '-dynamine' : ''} ${params.efoldmine ? '-efoldmine' : ''} ${params.disomine ? '-disomine' : ''} ${params.agmata ? '-agmata' : ''} -file $sequences -output ${sequences}.json -identifier test
+    python -m b2bTools  ${params.dynamine ? '-dynamine' : ''} ${params.efoldmine ? '-efoldmine' : ''} ${params.disomine ? '-disomine' : ''} ${params.agmata ? '-agmata' : ''} ${params.psper ? '-psp' : ''} -file $sequences -output ${sequences}.json -identifier test
     """
 }
 
@@ -341,7 +343,7 @@ process sSeqPredictBiophysicalFeatures {
     single_seq = SingleSeq("$sequences")
 
 
-    tool_list = ['${params.dynamine ? '-dynamine' : ''}', '${params.efoldmine ? '-efoldmine' : ''}', '${params.disomine ? '-disomine' : ''}', '${params.agmata ? '-agmata' : ''}']
+    tool_list = ['${params.dynamine ? 'dynamine' : ''}', '${params.efoldmine ? 'efoldmine' : ''}', '${params.disomine ? 'disomine' : ''}', '${params.agmata ? 'agmata' : ''}', '${params.psper ? 'psp' : ''}']
     tool_list=[x for x in tool_list if x]
 
 
