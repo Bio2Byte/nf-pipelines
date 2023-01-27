@@ -39,6 +39,8 @@ sequencesGrouped = sequencesFiltered
 
 
 process createMultipleSequenceAlignment {
+    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
+
     input:
     path sequences
 
@@ -55,8 +57,6 @@ process createMultipleSequenceAlignment {
 }
 
 process takeMultipleSequenceAlignment {
-
-    publishDir "results", mode: 'copy'
     input:
     path sequences
 
@@ -74,6 +74,8 @@ process takeMultipleSequenceAlignment {
 }
 
 process buildPhylogeneticTree {
+    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
+
     input:
     path multipleSequenceAlignment
 
@@ -87,8 +89,8 @@ process buildPhylogeneticTree {
 }
 
 process buildLogo {
+    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
 
-    publishDir "results", mode: 'copy'
     input:
     path multipleSequenceAlignment
 
@@ -103,7 +105,8 @@ process buildLogo {
 
 //render tree seems to take longest from all processes?
 process renderTree {
-    publishDir "results", mode: 'copy'
+    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
+
     input:
     path tree
 
@@ -127,6 +130,8 @@ process renderTree {
 }
 
 process predictBiophysicalFeatures {
+    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
+
     tag "${sequences.baseName}"
 
     input:
@@ -142,7 +147,8 @@ process predictBiophysicalFeatures {
 }
 
 process plotBiophysicalFeatures {
-    publishDir "results", mode: 'copy'
+    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
+
     tag "${predictions.baseName}"
 
     input:
@@ -251,6 +257,8 @@ process plotBiophysicalFeatures {
 }
 
 process plotAgmata {
+    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
+
     tag "${predictions.baseName}"
 
     input:
@@ -285,7 +293,8 @@ process plotAgmata {
 }
 
 process fetchStructure {
-    publishDir "results", mode: 'copy'
+    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
+
     tag "$id"
 
     input:
@@ -310,29 +319,19 @@ process fetchStructure {
 process compressPredictions {
     publishDir "results", mode: 'copy'
 
-    input:
-    path predictions
-    path plots
-
-    path multipleSequenceAlignment
-    path tree
-    path treePlot
-    path logo
-
-    path esmStructures
-    path agmata_plots
-
     output:
     path "*.tar.gz"
 
     script:
     """
-    tar -czvhf ${multipleSequenceAlignment.simpleName}.tar.gz $tree $treePlot $multipleSequenceAlignment $logo $predictions $plots ${params.agmata ? agmata_plots : ''} ${params.fetchEsm ? esmStructures : ''}
+    tar -czvhf ${targetSequencesFile.simpleName}.tar.gz ./results/${targetSequencesFile.simpleName}
+    rm -r ./results/${targetSequencesFile.simpleName}
     """
 }
 
-
 process sSeqPredictBiophysicalFeatures {
+    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
+
     tag "${sequences.baseName}"
 
     input:
@@ -385,22 +384,6 @@ process sSeqPredictBiophysicalFeatures {
                 avg_sidechain
             )
             index_file.write(index_line)
-    """
-}
-
-process sSeqCompressPredictions {
-    publishDir "results", mode: 'copy'
-
-    input:
-    path predictions
-    path indexFile
-
-    output:
-    path "*.tar.gz"
-
-    script:
-    """
-    tar -czvhf b2b_results.tar.gz $predictions $indexFile
     """
 }
 
@@ -462,42 +445,20 @@ workflow b2bToolsAnalysis {
 
 workflow {
     if (params.msa) {
-        dummyAgmata = file('dummy')
-        dummyEsm = file('dummy2')
-
         // First sub-workflow
         multipleSequenceAlignmentAnalysis(allSequences)
         // Second sub-workflow
         b2bToolsAnalysis(sequencesGrouped)
         // Third sub-workflow
         fetchStructure(sequencesFiltered.map { record -> [id: record.id, seqString: record.seqString.take(400)] })
-
-        // Main workflow
-        compressPredictions(
-            b2bToolsAnalysis.out.predictions.collect(),
-            b2bToolsAnalysis.out.plots.collect(),
-            multipleSequenceAlignmentAnalysis.out.multipleSequenceAlignment,
-            multipleSequenceAlignmentAnalysis.out.tree,
-            multipleSequenceAlignmentAnalysis.out.treePlot,
-            multipleSequenceAlignmentAnalysis.out.logo,
-
-            // if agmata and fetchesm are not calculated, compressing is not happening , no error
-            // set optional input files
-            b2bToolsAnalysis.out.agmata_plots.collect().ifEmpty(dummyAgmata),
-            fetchStructure.out.esmStructures.collect().ifEmpty(dummyEsm),
-        )
     }
     else {
         sSeqB2bToolsAnalysis(sequencesGrouped)
-
-        // sseq Main workflow
-        sSeqCompressPredictions(
-            sSeqB2bToolsAnalysis.out.predictions.collect(),
-            sSeqB2bToolsAnalysis.out.indexes.collectFile(name: "${targetSequencesFile.baseName}.index", keepHeader: true)
-        )
     }
-}
 
+    // Compress results into a single tarball file:
+    // compressPredictions()
+}
 
 workflow.onComplete {
     println "Pipeline completed at: $workflow.complete"
