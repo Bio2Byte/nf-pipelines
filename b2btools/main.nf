@@ -1,16 +1,17 @@
 #!/usr/bin/env nextflow
 // USAGE: nextflow run main.nf -resume -with-dag pipeline.png
 
-
 //USAGE: nextflow run main.nf  --targetSequences ../../example.fasta -profile standard,withdocker --dynamine --efoldmine --disomine --align_for_msa --msa
 
-// set potential b2bTools
+
 // watch index file! if disomine, efmine turned off it still wants to plot them, causes error
 
 params.dynamine = false
 params.efoldmine = false
 params.disomine = false
+
 params.agmata = false
+params.fetchEsm = false
 
 params.msa = false
 params.align_for_msa = false
@@ -98,6 +99,7 @@ process buildLogo {
 }
 
 
+//render tree seems to take longest from all processes?
 process renderTree {
     publishDir "results", mode: 'copy'
     input:
@@ -255,6 +257,9 @@ process plotAgmata {
     output:
     path "*_agmata_prediction.png", emit: plots
 
+    when:
+    params.agmata == true
+
     script:
     """
     #!/usr/bin/python3
@@ -284,7 +289,10 @@ process fetchStructure {
     tuple val(id), val(sequence)
 
     output:
-    path "*.pdb", emit: pdbStructures
+    path "*.pdb", emit: esmStructures
+
+    when:
+    params.fetchEsm == true
 
     script:
     """
@@ -298,24 +306,24 @@ process compressPredictions {
     input:
     path predictions
     path plots
-    //path agmata_plots
-
+    
     path multipleSequenceAlignment
     path tree
     path treePlot
     path logo
 
-  //  path pdbStructures
+    path esmStructures
+    path agmata_plots
 
     output:
     path "*.tar.gz"
 
     script:
     """
-    tar -czvhf ${multipleSequenceAlignment.simpleName}.tar.gz $tree $treePlot $multipleSequenceAlignment $logo $predictions $plots
+    tar -czvhf ${multipleSequenceAlignment.simpleName}.tar.gz $tree $treePlot $multipleSequenceAlignment $logo $predictions $plots ${params.agmata ? 'agmata' : ''} ${params.fetchEsm ? 'fetchEsm' : ''}
     """
-    //tar -czvhf ${multipleSequenceAlignment.simpleName}.tar.gz $tree $treePlot $multipleSequenceAlignment $logo $predictions $plots $agmata_plots $pdbStructures
 }
+
 
 process sSeqPredictBiophysicalFeatures {
     tag "${sequences.baseName}"
@@ -337,7 +345,7 @@ process sSeqPredictBiophysicalFeatures {
     single_seq = SingleSeq("$sequences")
 
 
-    tool_list = ['${params.dynamine ? 'dynamine' : ''}', '${params.efoldmine ? 'efoldmine' : ''}', '${params.disomine ? 'disomine' : ''}', '${params.agmata ? 'agmata' : ''}']
+    tool_list = ['${params.dynamine ? '-dynamine' : ''}', '${params.efoldmine ? '-efoldmine' : ''}', '${params.disomine ? '-disomine' : ''}', '${params.agmata ? '-agmata' : ''}']
     tool_list=[x for x in tool_list if x]
 
 
@@ -435,22 +443,20 @@ workflow b2bToolsAnalysis {
 
     main:
     predictBiophysicalFeatures(sequencesGrouped)
+
+    plotAgmata(predictBiophysicalFeatures.out.predictions)
     plotBiophysicalFeatures(predictBiophysicalFeatures.out.predictions)
-    //plotAgmata(predictBiophysicalFeatures.out.predictions)
 
     emit:
     predictions = predictBiophysicalFeatures.out.predictions
     plots = plotBiophysicalFeatures.out.plots
-    //agmata_plots = plotAgmata.out.plots
+    agmata_plots = plotAgmata.out.plots
 }
 
 workflow {
-
-
     if (params.msa == false) {
         sSeqB2bToolsAnalysis(sequencesGrouped)
 
-      // add single sequence OR msa OR if len of lines differ make msa
       // sseq Main workflow
         sSeqCompressPredictions(
             sSeqB2bToolsAnalysis.out.predictions.collect(),
@@ -459,28 +465,36 @@ workflow {
     }
     else {
 
+
+        dummyAgmata = file('dummy')
+        dummyEsm = file('dummy2')
         // First sub-workflow
         multipleSequenceAlignmentAnalysis(allSequences)
         // Second sub-workflow
         b2bToolsAnalysis(sequencesGrouped)
-
         // Third sub-workflow
-        //  fetchStructure(allSequences.splitFasta(record: [id: true, seqString: true ]).filter { record -> record.seqString.length() < 400 })
+        //fetchStructure(allSequences.splitFasta(record: [id: true, seqString: true ]).filter { record -> record.seqString.length() < 400 })
+        fetchStructure(allSequences.splitFasta(record: [id: true, seqString: true ]).take(400))
 
         // Main workflow
+
+            
         compressPredictions(
             b2bToolsAnalysis.out.predictions.collect(),
             b2bToolsAnalysis.out.plots.collect(),
-            //b2bToolsAnalysis.out.agmata_plots.collect(),
             multipleSequenceAlignmentAnalysis.out.multipleSequenceAlignment,
             multipleSequenceAlignmentAnalysis.out.tree,
             multipleSequenceAlignmentAnalysis.out.treePlot,
             multipleSequenceAlignmentAnalysis.out.logo,
-        //  fetchStructure.out.pdbStructures.collect()
+
+            // if agmata and fetchesm are not calculated, compressing is not happening , no error
+            // set optional input files
+            b2bToolsAnalysis.out.agmata_plots.collect().ifEmpty(dummyAgmata),
+            fetchStructure.out.esmStructures.collect().ifEmpty(dummyEsm),
+
             )
     }
 }
-
 
 
 workflow.onComplete {
