@@ -18,6 +18,8 @@ params.fetchEsm = false
 params.msa = false
 params.align_for_msa = false
 
+// maybe flag for use all flags?        s
+
 // sequence file
 
 params.targetSequences = "$launchDir/example.fasta"
@@ -132,10 +134,28 @@ process predictBiophysicalFeatures {
     output:
     path '*.json', emit: predictions
 
+    // Dynamine runs always; psp has no msa function
+
     script:
     """
-    python -m b2bTools  ${params.dynamine ? '-dynamine' : ''} ${params.efoldmine ? '-efoldmine' : ''} ${params.disomine ? '-disomine' : ''} ${params.agmata ? '-agmata' : ''} ${params.psper ? '-psp' : ''} -file $sequences -output ${sequences}.json -identifier test
+    #!/usr/local/bin/python
+
+    import matplotlib.pyplot as plt
+    from b2bTools import MultipleSeq
+    import json
+
+    tool_list = ['${params.efoldmine ? 'efoldmine' : ''}', '${params.disomine ? 'disomine' : ''}', '${params.agmata ? 'agmata' : ''}']
+    tool_list=[x for x in tool_list if x]
+
+    msaSeq = MultipleSeq()
+    msaSeq.from_aligned_file('$sequences',tools=tool_list)
+
+    predictions = msaSeq.get_all_predictions_msa()
+    json.dump(predictions, open('b2b_msa_results_${sequences.baseName}.json', 'w'), indent=2)
+
     """
+
+    
 }
 
 process plotBiophysicalFeatures {
@@ -156,7 +176,6 @@ process plotBiophysicalFeatures {
     import json
     with open('$predictions', 'r') as json_file:
         prediction_dict = json.loads(json_file.read())
-    for id, prediction in enumerate(prediction_dict['results']):
         fig, axs = plt.subplots(2, 4)
         ax1 = axs[0, 0]
         ax2 = axs[0, 1]
@@ -249,7 +268,7 @@ process plotBiophysicalFeatures {
 }
 
 process plotAgmata {
-    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
+    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy' , overwrite = false
 
     tag "${predictions.baseName}"
 
@@ -308,22 +327,8 @@ process fetchStructure {
     """
 }
 
-process compressPredictions {
-    publishDir "results", mode: 'copy'
-
-    output:
-    path "*.tar.gz"
-
-    script:
-    """
-    tar -czvhf ${targetSequencesFile.simpleName}.tar.gz ./results/${targetSequencesFile.simpleName}
-    rm -r ./results/${targetSequencesFile.simpleName}
-    """
-}
-
 process sSeqPredictBiophysicalFeatures {
     publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
-
     tag "${sequences.baseName}"
 
     input:
@@ -334,6 +339,8 @@ process sSeqPredictBiophysicalFeatures {
     path '*.index', emit: index
 
     script:
+    //python -m b2bTools  ${params.dynamine ? '-dynamine' : ''} ${params.efoldmine ? '-efoldmine' : ''} ${params.disomine ? '-disomine' : ''} ${params.agmata ? '-agmata' : ''} ${params.psper ? '-psp' : ''} -file $sequences -output ${sequences}.json -identifier test
+
     """
     #!/usr/local/bin/python
     from b2bTools import SingleSeq
@@ -379,6 +386,25 @@ process sSeqPredictBiophysicalFeatures {
     """
 }
 
+
+process compressPredictions {
+    publishDir "results", mode: 'copy'
+
+    input:
+    path "*.json"
+
+    output:
+    path "*.tar.gz"
+
+    script:
+    """
+    now=\$(date +%s)
+    tar -C  $launchDir -cvf ${targetSequencesFile.simpleName}_\${now}.tar.gz results/${targetSequencesFile.simpleName}
+    """
+      //  rm -r results/${targetSequencesFile.simpleName}
+}
+
+
 workflow sSeqB2bToolsAnalysis {
     take:
     sequencesGrouped
@@ -421,10 +447,10 @@ workflow multipleSequenceAlignmentAnalysis {
 
 workflow b2bToolsAnalysis {
     take:
-    sequencesGrouped
+    multipleSequenceAlignment
 
     main:
-    predictBiophysicalFeatures(sequencesGrouped)
+    predictBiophysicalFeatures(multipleSequenceAlignment)
 
     plotAgmata(predictBiophysicalFeatures.out.predictions)
     plotBiophysicalFeatures(predictBiophysicalFeatures.out.predictions)
@@ -435,21 +461,26 @@ workflow b2bToolsAnalysis {
     agmata_plots = plotAgmata.out.plots
 }
 
+
 workflow {
     if (params.msa) {
         // First sub-workflow
         multipleSequenceAlignmentAnalysis(allSequences)
         // Second sub-workflow
-        b2bToolsAnalysis(sequencesGrouped)
+        b2bToolsAnalysis(multipleSequenceAlignmentAnalysis.out.multipleSequenceAlignment)
         // Third sub-workflow
         fetchStructure(sequencesFiltered.map { record -> [id: record.id, seqString: record.seqString.take(400)] })
+
+        // Compress results into a single tarball file:
+        compressPredictions(b2bToolsAnalysis.out.predictions)
     }
     else {
         sSeqB2bToolsAnalysis(sequencesGrouped)
+
+        // Compress results into a single tarball file:
+        compressPredictions(sSeqB2bToolsAnalysis.out.predictions)
     }
 
-    // Compress results into a single tarball file:
-    // compressPredictions()
 }
 
 workflow.onComplete {
