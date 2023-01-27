@@ -27,6 +27,9 @@ allSequences = Channel.fromPath(params.targetSequences)
 sequencesFiltered = allSequences
     .splitFasta( record: [id: true, seqString: true, sequence: true ])
     .filter { record -> record.seqString.size() >= 5 && record.seqString.size() < 2000 }
+    .map {  record -> [id: record.id.replaceAll("[^a-zA-Z0-9]","_"), seqString: record.seqString, sequence: record.sequence] }
+
+// TODO: Put the removed sequences into another channel and inform user about the excluded.
 
 sequencesGrouped = sequencesFiltered
     .collectFile(name: "${targetSequencesFile.baseName}.fasta", newLine: true) {
@@ -64,8 +67,8 @@ process takeMultipleSequenceAlignment {
     params.align_for_msa == false
 
     script:
-    """ 
-    cp $sequences ${sequences}.msa 
+    """
+    cp $sequences ${sequences}.msa
     """
 
 }
@@ -97,7 +100,6 @@ process buildLogo {
     weblogo --sequence-type protein --title "MSA logo" --size large --format png_print < $multipleSequenceAlignment > ${multipleSequenceAlignment.simpleName}_logo.png
     """
 }
-
 
 //render tree seems to take longest from all processes?
 process renderTree {
@@ -283,6 +285,7 @@ process plotAgmata {
 }
 
 process fetchStructure {
+    publishDir "results", mode: 'copy'
     tag "$id"
 
     input:
@@ -296,7 +299,11 @@ process fetchStructure {
 
     script:
     """
+    echo Folding sequence using ESM Atlas
     curl -X POST --data "$sequence" https://api.esmatlas.com/foldSequence/v1/pdb/ > ${id}.pdb
+    echo Preview of the PDB content
+    head ${id}.pdb
+    tail ${id}.pdb
     """
 }
 
@@ -306,7 +313,7 @@ process compressPredictions {
     input:
     path predictions
     path plots
-    
+
     path multipleSequenceAlignment
     path tree
     path treePlot
@@ -320,7 +327,7 @@ process compressPredictions {
 
     script:
     """
-    tar -czvhf ${multipleSequenceAlignment.simpleName}.tar.gz $tree $treePlot $multipleSequenceAlignment $logo $predictions $plots ${params.agmata ? 'agmata' : ''} ${params.fetchEsm ? 'fetchEsm' : ''}
+    tar -czvhf ${multipleSequenceAlignment.simpleName}.tar.gz $tree $treePlot $multipleSequenceAlignment $logo $predictions $plots ${params.agmata ? agmata_plots : ''} ${params.fetchEsm ? esmStructures : ''}
     """
 }
 
@@ -416,11 +423,11 @@ workflow multipleSequenceAlignmentAnalysis {
     main:
     if (params.align_for_msa == true){
         createMultipleSequenceAlignment(allSequences)
-        multipleSequenceAlignment = createMultipleSequenceAlignment.out.multipleSequenceAlignment 
+        multipleSequenceAlignment = createMultipleSequenceAlignment.out.multipleSequenceAlignment
     }
     else {
         takeMultipleSequenceAlignment(allSequences)
-        multipleSequenceAlignment = takeMultipleSequenceAlignment.out.multipleSequenceAlignment 
+        multipleSequenceAlignment = takeMultipleSequenceAlignment.out.multipleSequenceAlignment
     }
 
     buildPhylogeneticTree(multipleSequenceAlignment)
@@ -454,31 +461,18 @@ workflow b2bToolsAnalysis {
 }
 
 workflow {
-    if (params.msa == false) {
-        sSeqB2bToolsAnalysis(sequencesGrouped)
-
-      // sseq Main workflow
-        sSeqCompressPredictions(
-            sSeqB2bToolsAnalysis.out.predictions.collect(),
-            sSeqB2bToolsAnalysis.out.indexes.collectFile(name: "${targetSequencesFile.baseName}.index", keepHeader: true)
-        )
-    }
-    else {
-
-
+    if (params.msa) {
         dummyAgmata = file('dummy')
         dummyEsm = file('dummy2')
+
         // First sub-workflow
         multipleSequenceAlignmentAnalysis(allSequences)
         // Second sub-workflow
         b2bToolsAnalysis(sequencesGrouped)
         // Third sub-workflow
-        //fetchStructure(allSequences.splitFasta(record: [id: true, seqString: true ]).filter { record -> record.seqString.length() < 400 })
-        fetchStructure(allSequences.splitFasta(record: [id: true, seqString: true ]).take(400))
+        fetchStructure(sequencesFiltered.map { record -> [id: record.id, seqString: record.seqString.take(400)] })
 
         // Main workflow
-
-            
         compressPredictions(
             b2bToolsAnalysis.out.predictions.collect(),
             b2bToolsAnalysis.out.plots.collect(),
@@ -491,8 +485,16 @@ workflow {
             // set optional input files
             b2bToolsAnalysis.out.agmata_plots.collect().ifEmpty(dummyAgmata),
             fetchStructure.out.esmStructures.collect().ifEmpty(dummyEsm),
+        )
+    }
+    else {
+        sSeqB2bToolsAnalysis(sequencesGrouped)
 
-            )
+        // sseq Main workflow
+        sSeqCompressPredictions(
+            sSeqB2bToolsAnalysis.out.predictions.collect(),
+            sSeqB2bToolsAnalysis.out.indexes.collectFile(name: "${targetSequencesFile.baseName}.index", keepHeader: true)
+        )
     }
 }
 
