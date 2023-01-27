@@ -111,21 +111,11 @@ process renderTree {
     path tree
 
     output:
-    path "tree.png", emit: treePlot
+    path "${tree}.svg", emit: treePlot
 
     script:
     """
-    #!/usr/bin/env Rscript
-    tempLibPath <- tempdir()
-    dir.create(tempLibPath) # create personal library
-    .libPaths(tempLibPath)  # add to the path
-    install.packages("ape")  # install like always
-    library(ape)  # use library like always
-
-    mytr <- read.tree("$tree")
-    png("tree.png")
-    plot(mytr)
-    dev.off()
+    xvfb-run ete3 view --image ${tree}.svg -t ${tree}
     """
 }
 
