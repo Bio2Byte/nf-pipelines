@@ -1,31 +1,66 @@
 #!/usr/bin/env nextflow
-// USAGE: nextflow run main.nf -resume -with-dag pipeline.png
 
-//USAGE: nextflow run main.nf  --targetSequences ../../example.fasta -profile standard,withdocker --dynamine --efoldmine --disomine --align_for_msa --msa
-
+//USAGE: nextflow run main.nf  --targetSequences ../../example.fasta -profile standard,withdocker --dynamine --efoldmine --disomine --agmata --alignSingleSequences --msa
 
 // watch index file! if disomine, efmine turned off it still wants to plot them, causes error
 
-params.dynamine = false
+params.executionTimestamp = new java.text.SimpleDateFormat("yyyy_MM_dd_HH_mm_ss").format(new Date())
+
+// Available predictors:
+params.dynamine  = false
 params.efoldmine = false
-params.disomine = false
+params.disomine  = false
+params.agmata    = false
+params.psper     = false
 
-params.agmata = false
-params.psper = false
+// MSA parameters:
+// maybe flag for use all flags?
+params.fetchEsm      = false
+params.msa           = false
+params.alignSingleSequences = false
 
-params.fetchEsm = false
+// Input file
+params.targetSequences      = "$launchDir/example.fasta"
+targetSequencesFile         = file(params.targetSequences)
+params.resultsDirectory     = "$projectDir/${params.executionTimestamp}"
+params.compressedFile       = "$projectDir/${targetSequencesFile.simpleName}_${params.executionTimestamp}.tar.gz"
+params.groupBy              = 10
 
-params.msa = false
-params.align_for_msa = false
+log.info """\
 
-// maybe flag for use all flags?        s
+================================
+        LIST OF PARAMETERS
+================================
+            GENERAL
 
-// sequence file
+Launch dir       : $launchDir
+Prject dir       : $projectDir
+Execution time   : $params.executionTimestamp
+Results dir      : $params.resultsDirectory
+Compressed file  : $params.compressedFile
+================================
+            INPUT FILES
 
-params.targetSequences = "$launchDir/example.fasta"
-params.groupBy =10
+Input-file       : $params.targetSequences
+JSON page size   : $params.groupBy
+================================
+            PREDICTORS
 
-targetSequencesFile = file(params.targetSequences)
+DynaMine         : $params.dynamine
+DisoMine         : $params.disomine
+EFoldMine        : $params.efoldmine
+AgMata           : $params.agmata
+PSP              : $params.psper
+================================
+        SINGLE SEQ or MSA
+
+MSA mode         : $params.msa
+Align for MSA    : $params.alignSingleSequences
+Fetch structures : $params.fetchEsm
+================================
+"""
+
+// Processing input
 allSequences = Channel.fromPath(params.targetSequences)
 
 sequencesFiltered = allSequences
@@ -41,451 +76,147 @@ sequencesGrouped = sequencesFiltered
     }
     .splitFasta( file: true, by: params.groupBy )
 
+// Modules
+include {
+    predictBiophysicalFeatures as predictBiophysicalFeaturesForMSA;
+    buildMultipleSequenceAlignment;
+    takeMultipleSequenceAlignment;
+    buildPhylogeneticTree;
+    buildLogo;
+} from "${launchDir}/modules/multipleSequenceAlignment"
 
-process createMultipleSequenceAlignment {
-    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
+include {
+    fetchStructure;
+} from "${launchDir}/modules/structures"
 
-    input:
-    path sequences
+include {
+    plotBiophysicalFeatures;
+    plotAgmata;
+    plotPhylogeneticTree;
+} from "${launchDir}/modules/plots"
 
-    output:
-    path "*.msa", emit: multipleSequenceAlignment
+include {
+    predictBiophysicalFeatures as predictBiophysicalFeaturesForSingleSeq;
+} from "${launchDir}/modules/singleSequenceAnalysis"
 
-    when:
-    params.align_for_msa == true
-
-    script:
-    """
-    clustalo -i $sequences -o ${sequences}.msa
-    """
-}
-
-process takeMultipleSequenceAlignment {
-    input:
-    path sequences
-
-    output:
-    path "*.msa", emit: multipleSequenceAlignment
-
-    when:
-    params.align_for_msa == false
-
-    script:
-    """
-    cp $sequences ${sequences}.msa
-    """
-
-}
-
-process buildPhylogeneticTree {
-    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
-
-    input:
-    path multipleSequenceAlignment
-
-    output:
-    path "*.tree", emit: tree
-
-    script:
-    """
-    FastTree $multipleSequenceAlignment > ${multipleSequenceAlignment}.tree
-    """
-}
-
-process buildLogo {
-    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
-
-    input:
-    path multipleSequenceAlignment
-
-    output:
-    path "*_logo.png", emit: logo
-
-    script:
-    """
-    weblogo --sequence-type protein --title "MSA logo" --size large --format png_print < $multipleSequenceAlignment > ${multipleSequenceAlignment.simpleName}_logo.png
-    """
-}
-
-
-process renderTree {
-    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
-
-    input:
-    path tree
-
-    output:
-    path "${tree}.svg", emit: treePlot
-
-    script:
-    """
-    xvfb-run ete3 view --image ${tree}.svg -t ${tree}
-    """
-}
-
-process predictBiophysicalFeatures {
-    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
-
-    tag "${sequences.baseName}"
-
-    input:
-    path sequences
-
-    output:
-    path '*.json', emit: predictions
-
-    // Dynamine runs always; psp has no msa function
-
-    script:
-    """
-    #!/usr/local/bin/python
-
-    import matplotlib.pyplot as plt
-    from b2bTools import MultipleSeq
-    import json
-
-    tool_list = ['${params.efoldmine ? 'efoldmine' : ''}', '${params.disomine ? 'disomine' : ''}', '${params.agmata ? 'agmata' : ''}']
-    tool_list=[x for x in tool_list if x]
-
-    msaSeq = MultipleSeq()
-    msaSeq.from_aligned_file('$sequences',tools=tool_list)
-
-    predictions = msaSeq.get_all_predictions_msa()
-    json.dump(predictions, open('b2b_msa_results_${sequences.baseName}.json', 'w'), indent=2)
-
-    """
-
-    
-}
-
-process plotBiophysicalFeatures {
-    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
-
-    tag "${predictions.baseName}"
-
-    input:
-    path predictions
-
-    output:
-    path "*_predictions.png", emit: plots
-
-    script:
-    """
-    #!/usr/bin/python3
-    import matplotlib.pyplot as plt
-    import json
-    with open('$predictions', 'r') as json_file:
-        prediction_dict = json.loads(json_file.read())
-        fig, axs = plt.subplots(2, 4)
-        ax1 = axs[0, 0]
-        ax2 = axs[0, 1]
-        ax3 = axs[0, 2]
-        ax4 = axs[0, 3]
-        ax5 = axs[1, 0]
-        ax6 = axs[1, 1]
-        ax7 = axs[1, 2]
-        ax8 = axs[1, 3]
-        fig.set_figwidth(30)
-        fig.set_figheight(10)
-        fig.suptitle(f"Single Sequence Predictions for: {prediction['proteinID']}")
-        x_position = range(len(prediction['sequence']))
-        backbone_pred = prediction['backbone']
-        coil_pred = prediction['coil']
-        sheet_pred = prediction['sheet']
-        ppII_pred = prediction['ppII']
-        helix_pred = prediction['helix']
-        sidechain_pred = prediction['sidechain']
-        #disomine_pred = prediction['disoMine']
-        earlyFolding_pred = prediction['earlyFolding']
-        ax1.plot(x_position, backbone_pred, label="Backbone")
-        ax2.plot(x_position, sidechain_pred, label="Side chain")
-        ax3.plot(x_position, coil_pred, label="Coil")
-        ax4.plot(x_position, sheet_pred, label="Sheet")
-        ax5.plot(x_position, ppII_pred, label="ppII")
-        ax6.plot(x_position, helix_pred, label="Helix")
-        #ax7.plot(x_position, disomine_pred, label="Disorder")
-        ax8.plot(x_position, earlyFolding_pred, label="Early folding")
-        ax1.set_title('DynaMine backbone dynamics')
-        ax1.set_ylim([-0.2, 1.2])
-        ax1.set_xlabel('residue index')
-        ax1.set_ylabel('prediction values')
-        ax1.axhspan(1, 1.2, alpha=0.3, color='red')
-        ax1.axhspan(0.8, 1, alpha=0.5, color='pink')
-        ax1.axhspan(0.69, 0.8, alpha=0.5, color='orange')
-        ax1.axhspan(-0.2, 0.69, alpha=0.5, color='yellow')
-        ax1.grid(axis='y')
-        ax1.set_xlim([0, len(prediction['sequence']) - 1])
-        ax2.set_title('DynaMine sidechain dynamics')
-        ax2.set_ylim([-0.2, 1.2])
-        ax2.set_xlabel('residue index')
-        ax2.set_ylabel('prediction values')
-        ax2.grid(axis='y')
-        ax2.set_xlim([0, len(prediction['sequence']) - 1])
-        ax3.set_title('DynaMine conformational propensities: Coil')
-        ax3.set_ylim([-0.2, 1.2])
-        ax3.set_xlabel('residue index')
-        ax3.set_ylabel('prediction values')
-        ax3.grid(axis='y')
-        ax3.set_xlim([0, len(prediction['sequence']) - 1])
-        ax4.set_title('DynaMine conformational propensities: Sheet')
-        ax4.set_ylim([-0.2, 1.2])
-        ax4.set_xlabel('residue index')
-        ax4.set_ylabel('prediction values')
-        ax4.grid(axis='y')
-        ax4.set_xlim([0, len(prediction['sequence']) - 1])
-        ax5.set_title('DynaMine conformational propensities: ppII (polyproline II)')
-        ax5.set_ylim([-0.2, 1.2])
-        ax5.set_xlabel('residue index')
-        ax5.set_ylabel('prediction values')
-        ax5.grid(axis='y')
-        ax5.set_xlim([0, len(prediction['sequence']) - 1])
-        ax6.set_title('DynaMine conformational propensities: Helix')
-        ax6.set_ylim([-0.2, 1.2])
-        ax6.set_xlabel('residue index')
-        ax6.set_ylabel('prediction values')
-        ax6.grid(axis='y')
-        ax6.set_xlim([0, len(prediction['sequence']) - 1])
-        ax7.set_title('Early folding (EFoldMine)')
-        ax7.set_ylim([-0.2, 1.2])
-        ax7.set_xlabel('residue index')
-        ax7.set_ylabel('prediction values')
-        ax7.axhspan(-0.2, 0.169, alpha=0.5, color='yellow')
-        ax7.axhspan(0.169, 1.2, alpha=0.5, color='orange')
-        ax7.grid(axis='y')
-        ax7.set_xlim([0, len(prediction['sequence']) - 1])
-        ax8.set_title('Disorder (disoMine)')
-        ax8.set_ylim([-0.2, 1.2])
-        ax8.set_xlabel('residue index')
-        ax8.set_ylabel('prediction values')
-        ax8.axhspan(0.5, 1.2, alpha=0.5, color='orange')
-        ax8.axhspan(-0.2, 0.5, alpha=0.5, color='yellow')
-        ax8.grid(axis='y')
-        ax8.set_xlim([0, len(prediction['sequence']) - 1])
-        plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.3), fancybox=True, shadow=True, ncol=8)
-        plt.subplots_adjust(hspace=0.4)
-        plt.savefig(prediction['proteinID'] + '_predictions.png')
-    """
-}
-
-process plotAgmata {
-    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy' , overwrite = false
-
-    tag "${predictions.baseName}"
-
-    input:
-    path predictions
-
-    output:
-    path "*_agmata_prediction.png", emit: plots
-
-    when:
-    params.agmata == true
-
-    script:
-    """
-    #!/usr/bin/python3
-    import matplotlib.pyplot as plt
-    import json
-    with open('$predictions', 'r') as json_file:
-        prediction_dict = json.loads(json_file.read())
-    for id, prediction in enumerate(prediction_dict['results']):
-        fig, ax = plt.subplots(1, 1)
-        fig.set_figwidth(30)
-        fig.set_figheight(5)
-        fig.suptitle('Agmata aggregation propensity')
-        agmata_pred = prediction['agmata']
-        ax.plot(range(len(agmata_pred)), agmata_pred, label="AgMata")
-        ax.set_xlim([0, len(agmata_pred) - 1])
-        ax.set_xlabel('residue index')
-        ax.set_ylabel('prediction values')
-        ax.grid(axis='y')
-        plt.savefig(prediction['proteinID'] + '_agmata_prediction.png')
-    """
-}
-
-process fetchStructure {
-    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
-
-    tag "$id"
-
-    input:
-    tuple val(id), val(sequence)
-
-    output:
-    path "*.pdb", emit: esmStructures
-
-    when:
-    params.fetchEsm == true
-
-    script:
-    """
-    echo Folding sequence using ESM Atlas
-    curl -X POST --data "$sequence" https://api.esmatlas.com/foldSequence/v1/pdb/ > ${id}.pdb
-    echo Preview of the PDB content
-    head ${id}.pdb
-    tail ${id}.pdb
-    """
-}
-
-process sSeqPredictBiophysicalFeatures {
-    publishDir "results/${targetSequencesFile.simpleName}", mode: 'copy'
-    tag "${sequences.baseName}"
-
-    input:
-    path sequences
-
-    output:
-    path '*.json', emit: predictions
-    path '*.index', emit: index
-
-    script:
-    //python -m b2bTools  ${params.dynamine ? '-dynamine' : ''} ${params.efoldmine ? '-efoldmine' : ''} ${params.disomine ? '-disomine' : ''} ${params.agmata ? '-agmata' : ''} ${params.psper ? '-psp' : ''} -file $sequences -output ${sequences}.json -identifier test
-
-    """
-    #!/usr/local/bin/python
-    from b2bTools import SingleSeq
-    import json
-    def average(lst):
-        return sum(lst) / len(lst)
-    single_seq = SingleSeq("$sequences")
-
-
-    tool_list = ['${params.dynamine ? 'dynamine' : ''}', '${params.efoldmine ? 'efoldmine' : ''}', '${params.disomine ? 'disomine' : ''}', '${params.agmata ? 'agmata' : ''}', '${params.psper ? 'psp' : ''}']
-    tool_list=[x for x in tool_list if x]
-
-
-    single_seq.predict(tools=tool_list)
-    all_predictions = single_seq.get_all_predictions()
-    json.dump(all_predictions, open('b2b_results_${sequences.baseName}.json', 'w'), indent=2)
-    with open('b2b_results_${sequences.baseName}.index', 'w') as index_file:
-        index_file.write("id,json_file,residues_count,avg_backbone,avg_coil,avg_helix,avg_ppII,avg_sheet,avg_sidechain,avg_earlyFolding \\n")#,avg_disoMine
-        for sequence_key in all_predictions.keys():
-            prediction = all_predictions[sequence_key]
-            seq_len = len(prediction['seq'])
-            avg_backbone = average(prediction['backbone'])
-            avg_coil = average(prediction['coil'])
-          #  avg_disoMine = average(prediction['disoMine'])
-            avg_earlyFolding = average(prediction['earlyFolding'])
-            avg_helix = average(prediction['helix'])
-            avg_ppII = average(prediction['ppII'])
-            avg_sheet = average(prediction['sheet'])
-            avg_sidechain = average(prediction['sidechain'])
-            index_line = "{0},b2b_results_${sequences.baseName}.json,{1},{2:.3f},{3:.3f},{4:.3f},{5:.3f},{6:.3f},{7:.3f},{8:.3f}\\n".format( #,{9:.3f}
-                sequence_key,
-                seq_len,
-                avg_backbone,
-                avg_coil,
-                #avg_disoMine,
-                avg_earlyFolding,
-                avg_helix,
-                avg_ppII,
-                avg_sheet,
-                avg_sidechain
-            )
-            index_file.write(index_line)
-    """
-}
-
-
+// Processes
 process compressPredictions {
     publishDir "results", mode: 'copy'
 
     input:
-    path "*.json"
+    // val outputs
 
     output:
     path "*.tar.gz"
 
     script:
     """
-    now=\$(date +%s)
-    tar -C  $launchDir -cvf ${targetSequencesFile.simpleName}_\${now}.tar.gz results/${targetSequencesFile.simpleName}
+    echo Creating compressed file: ${params.compressedFile}
+    echo Content of compressed: ${params.resultsDirectory}
+    ls ${params.resultsDirectory}
+
+    tar -czvf ${params.compressedFile} ${params.resultsDirectory}
     """
-      //  rm -r results/${targetSequencesFile.simpleName}
 }
 
-
-workflow sSeqB2bToolsAnalysis {
+// Workflows
+workflow workflowSingleSequences {
     take:
-    sequencesGrouped
+        sequencesGrouped
 
     main:
-    sSeqPredictBiophysicalFeatures(sequencesGrouped)
+        predictBiophysicalFeaturesForSingleSeq(
+            params.resultsDirectory,
+            sequencesGrouped,
+            params.dynamine,
+            params.efoldmine,
+            params.disomine,
+            params.agmata,
+            params.psper
+        )
 
     emit:
-    predictions = sSeqPredictBiophysicalFeatures.out.predictions
-    indexes = sSeqPredictBiophysicalFeatures.out.index
+        predictions = predictBiophysicalFeaturesForSingleSeq.out.predictions
+        indexes     = predictBiophysicalFeaturesForSingleSeq.out.index
 }
 
-workflow multipleSequenceAlignmentAnalysis {
+workflow workflowMSA {
     take:
-    allSequences
+        allSequences
 
     main:
-    if (params.align_for_msa == true){
-        createMultipleSequenceAlignment(allSequences)
-        multipleSequenceAlignment = createMultipleSequenceAlignment.out.multipleSequenceAlignment
-    }
-    else {
-        takeMultipleSequenceAlignment(allSequences)
-        multipleSequenceAlignment = takeMultipleSequenceAlignment.out.multipleSequenceAlignment
-    }
+        if (params.alignSingleSequences) {
+            buildMultipleSequenceAlignment(params.resultsDirectory, allSequences)
+            multipleSequenceAlignment = buildMultipleSequenceAlignment.out.multipleSequenceAlignment
+        }
+        else {
+            takeMultipleSequenceAlignment(allSequences)
+            multipleSequenceAlignment = takeMultipleSequenceAlignment.out.multipleSequenceAlignment
+        }
 
-    buildPhylogeneticTree(multipleSequenceAlignment)
-    buildLogo(multipleSequenceAlignment)
-    renderTree(buildPhylogeneticTree.out.tree)
+        buildPhylogeneticTree(params.resultsDirectory, multipleSequenceAlignment)
+        plotPhylogeneticTree(params.resultsDirectory, buildPhylogeneticTree.out.tree)
+        buildLogo(params.resultsDirectory, multipleSequenceAlignment)
 
     emit:
-
-    multipleSequenceAlignment
-
-    tree = buildPhylogeneticTree.out.tree
-    treePlot = renderTree.out.treePlot
-    logo = buildLogo.out.logo
-
+        multipleSequenceAlignment
+        tree = buildPhylogeneticTree.out.tree
+        treePlot = plotPhylogeneticTree.out.treePlot
+        logo = buildLogo.out.logo
 }
 
-workflow b2bToolsAnalysis {
+workflow workflowMSABiophysicalFeatures {
     take:
-    multipleSequenceAlignment
+        multipleSequenceAlignment
 
     main:
-    predictBiophysicalFeatures(multipleSequenceAlignment)
-
-    plotAgmata(predictBiophysicalFeatures.out.predictions)
-    plotBiophysicalFeatures(predictBiophysicalFeatures.out.predictions)
+        predictBiophysicalFeaturesForMSA(params.resultsDirectory, multipleSequenceAlignment)
+        plotBiophysicalFeatures(params.resultsDirectory, predictBiophysicalFeaturesForMSA.out.predictions)
+        plotAgmata(params.resultsDirectory, predictBiophysicalFeaturesForMSA.out.predictions)
 
     emit:
-    predictions = predictBiophysicalFeatures.out.predictions
-    plots = plotBiophysicalFeatures.out.plots
-    agmata_plots = plotAgmata.out.plots
+        predictions = predictBiophysicalFeaturesForMSA.out.predictions
+        plots = plotBiophysicalFeatures.out.plots
+        agmata_plots = plotAgmata.out.plots
 }
 
+
+
+workflow workflowPredictions{
+    take:
+        allSequences
+        sequencesFiltered
+        sequencesGrouped
+
+    main:
+        if (params.msa) {
+            log.info "Running specific workflow steps for Multiple Sequence Alignment"
+
+            workflowMSA(allSequences)
+            b2bPredictions = workflowMSABiophysicalFeatures(workflowMSA.out.multipleSequenceAlignment)
+        }
+        else {
+            log.info "Running specific workflow steps for Single Sequences"
+
+            b2bPredictions = workflowSingleSequences(sequencesGrouped)
+        }
+
+        log.info "Running generic workflow steps"
+
+        fetchStructure(params.resultsDirectory, sequencesFiltered.map { record -> [id: record.id, seqString: record.seqString.take(400)] })
+    emit:
+        esmStructures = fetchStructure.out.esmStructures
+        b2bBiophysicalPredictions = b2bPredictions.out.predictions
+}
 
 workflow {
-    if (params.msa) {
-        // First sub-workflow
-        multipleSequenceAlignmentAnalysis(allSequences)
-        // Second sub-workflow
-        b2bToolsAnalysis(multipleSequenceAlignmentAnalysis.out.multipleSequenceAlignment)
-        // Third sub-workflow
-        fetchStructure(sequencesFiltered.map { record -> [id: record.id, seqString: record.seqString.take(400)] })
-
-        // Compress results into a single tarball file:
-        compressPredictions(b2bToolsAnalysis.out.predictions)
-    }
-    else {
-        sSeqB2bToolsAnalysis(sequencesGrouped)
-
-        // Compress results into a single tarball file:
-        compressPredictions(sSeqB2bToolsAnalysis.out.predictions)
-    }
-
+    workflowPredictions(allSequences, sequencesFiltered, sequencesGrouped)
 }
 
 workflow.onComplete {
     println "Pipeline completed at: $workflow.complete"
-    println "Execution status: ${ workflow.success ? 'OK' : 'failed' }"
+    println "Time to complete workflow execution: $workflow.duration"
+    println "Execution status: ${workflow.success ? 'Success' : 'Failed' }"
 }
 
 workflow.onError {
