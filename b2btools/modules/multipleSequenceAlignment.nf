@@ -20,7 +20,7 @@ process predictBiophysicalFeatures {
     from b2bTools import MultipleSeq
     import json
 
-    tool_list = [${params.efoldmine ? '"efoldmine,"' : ''} ${params.disomine ? '"disomine,"' : ''} ${params.agmata ? '"agmata"' : ''}]
+    tool_list = [${params.efoldmine ? '"efoldmine,"' : ''} ${params.disomine ? '"disomine,"' : ''}]
     tool_list=[x for x in tool_list if x]
 
     msaSeq = MultipleSeq()

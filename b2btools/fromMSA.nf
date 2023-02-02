@@ -1,13 +1,12 @@
 #!/usr/bin/env nextflow
 
-//USAGE: nextflow run fromMSA.nf  --targetSequences ../example.fasta -profile standard,withdocker --agmata--efoldmine --disomine --alignSingleSequences
+//  RUN: nextflow run -resume fromMSA.nf --targetSequences ../input_example.fasta -profile standard,withdocker --efoldmine --disomine --alignSingleSequences
 
 params.executionTimestamp = new java.text.SimpleDateFormat("yyyy_MM_dd_HH_mm_ss").format(new Date())
 
 // Available predictors:
 params.efoldmine       = true
 params.disomine        = true
-params.agmata          = true
 params.fetchStructures = true
 
 // MSA parameters:
@@ -21,6 +20,20 @@ params.compressedFile       = "$projectDir/${targetSequencesFile.simpleName}_${p
 params.groupBy              = 10
 
 log.info """\
+
+Usage:
+
+\$ nextflow run -resume fromMSA.nf \
+
+    -profile standard,withdocker \
+
+    --targetSequences ../example.fasta \
+
+    --efoldmine \
+
+    --disomine \
+
+    --alignSingleSequences
 
 ================================
         LIST OF PARAMETERS
@@ -88,28 +101,28 @@ include {
 } from "${launchDir}/modules/structures"
 
 include {
-    plotBiophysicalFeatures;
-    plotAgmata;
+    plotBiophysicalFeaturesOverview as plotBiophysicalFeatures;
     plotPhylogeneticTree;
 } from "${launchDir}/modules/plots"
 
 // Processes
 process compressPredictions {
-    publishDir "results", mode: 'copy'
-
     input:
-    // val outputs
-
-    output:
-    path "*.tar.gz"
+    val multipleSequenceAlignment
+    val tree
+    val treePlot
+    val logo
+    val predictions
+    val plots
+    val documents
+    val esmStructures
 
     script:
     """
     echo Creating compressed file: ${params.compressedFile}
     echo Content of compressed: ${params.resultsDirectory}
-    ls ${params.resultsDirectory}
 
-    tar -czvf ${params.compressedFile} ${params.resultsDirectory}
+    tar -czvf ${params.compressedFile} -C / ${params.resultsDirectory}
     """
 }
 
@@ -129,22 +142,32 @@ workflow {
     buildLogo(params.resultsDirectory, multipleSequenceAlignment)
 
     predictBiophysicalFeatures(params.resultsDirectory, multipleSequenceAlignment)
-    // plotBiophysicalFeatures(params.resultsDirectory, predictBiophysicalFeatures.out.predictions)
-    // plotAgmata(params.resultsDirectory, predictBiophysicalFeatures.out.predictions)
+    plotBiophysicalFeatures(
+        params.resultsDirectory,
+        multipleSequenceAlignment,
+        params.efoldmine,
+        params.disomine
+    )
 
     fetchStructure(params.resultsDirectory, sequencesFiltered.map { record -> [id: record.id, seqString: record.seqString.take(400)] })
 
-    // compressPredictions(
-    //     workflowSingleSequences.out.predictions.view(),
-    //     workflowSingleSequences.out.index.view(),
-    //     fetchStructure.out.esmStructures.view()
-    // )
+    compressPredictions(
+        multipleSequenceAlignment,
+        buildPhylogeneticTree.out.tree,
+        plotPhylogeneticTree.out.treePlot,
+        buildLogo.out.logo,
+        predictBiophysicalFeatures.out.predictions,
+        plotBiophysicalFeatures.out.plots,
+        plotBiophysicalFeatures.out.documents,
+        fetchStructure.out.esmStructures
+    )
 }
 
 workflow.onComplete {
-    println "Pipeline completed at: $workflow.complete"
-    println "Time to complete workflow execution: $workflow.duration"
-    println "Execution status: ${workflow.success ? 'Success' : 'Failed' }"
+    println "Pipeline completed at               : $workflow.complete"
+    println "Time to complete workflow execution : $workflow.duration"
+    println "Execution status                    : ${workflow.success ? 'Success' : 'Failed' }"
+    println "Compressed file                     : $params.compressedFile"
 }
 
 workflow.onError {

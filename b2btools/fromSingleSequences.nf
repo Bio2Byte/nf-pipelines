@@ -1,5 +1,6 @@
 #!/usr/bin/env nextflow
 
+// RUN: nextflow run -resume fromSingleSequences.nf -profile standard,withdocker --targetSequences ../example.fasta --dynamine --efoldmine --disomine --agmata
 params.executionTimestamp = new java.text.SimpleDateFormat("yyyy_MM_dd_HH_mm_ss").format(new Date())
 
 // Available predictors:
@@ -112,7 +113,6 @@ process compressPredictions {
     """
     echo Creating compressed file: ${params.compressedFile}
     echo Content of compressed: ${params.resultsDirectory}
-    ls ${params.resultsDirectory}
 
     tar -czvf ${params.compressedFile} -C / ${params.resultsDirectory}
     """
@@ -150,9 +150,10 @@ workflow {
 }
 
 workflow.onComplete {
-    println "Pipeline completed at: $workflow.complete"
-    println "Time to complete workflow execution: $workflow.duration"
-    println "Execution status: ${workflow.success ? 'Success' : 'Failed' }"
+    println "Pipeline completed at               : $workflow.complete"
+    println "Time to complete workflow execution : $workflow.duration"
+    println "Execution status                    : ${workflow.success ? 'Success' : 'Failed' }"
+    println "Compressed file                     : $params.compressedFile"
 }
 
 workflow.onError {

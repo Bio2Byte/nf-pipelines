@@ -16,7 +16,7 @@ process plotBiophysicalFeatures {
 
     script:
     """
-#!/usr/bin/python3
+#!/usr/local/bin/python
 import json
 import os
 os.environ['MPLCONFIGDIR'] = os.getcwd() + "/configs/"
@@ -70,7 +70,7 @@ def plot_single_sequence(all_predictions, tools):
             ax1.axhline(y=1.0, color='green', linewidth= 1.5, linestyle='-.', label='Above: Membrane spaning') #Membrane spaning
             ax1.axhline(y=0.8, color='orange', linewidth= 1.5, linestyle='-.', label='Above: Rigid') #Membrane spaning
             if min(backbone_pred)-0.05 < 0.69:
-                ax1.axhline(y=0.69, color='red', linewidth= 1.5, linestyle='-.', label='Above: Context dependent \\nBelow: Flexible') #context dependent (either rigide or flexible)
+                ax1.axhline(y=0.69, color='red', linewidth= 1.5, linestyle='-.', label='Above: Context dependent \\\nBelow: Flexible') #context dependent (either rigide or flexible)
             ax1.legend(ncol=1, bbox_to_anchor =(1.1,0.5), loc='center left', fontsize=15)
 
             ax2.plot(x_position, sidechain_pred, label=seq_key)
@@ -257,6 +257,357 @@ plot_single_sequence(prediction_dict, tools)
 
 if 'psp' in tools:
     plot_psper(prediction_dict)
+    """
+}
+
+process plotBiophysicalFeaturesOverview {
+    publishDir "${resultsDirectory}", mode: 'copy'
+    tag "${msa.baseName}"
+
+    input:
+    path resultsDirectory
+    path msa
+    val efoldmine
+    val disomine
+
+    output:
+    path "*.pdf", emit: documents
+    path "*.png", emit: plots
+
+    script:
+    """
+#!/usr/local/bin/python
+import json
+import os
+import math
+import numpy as np
+import re
+
+os.environ['MPLCONFIGDIR'] = os.getcwd() + "/configs/"
+import matplotlib as mpl
+mpl.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.ticker import AutoMinorLocator
+import matplotlib.ticker as ticker
+
+import Bio
+from Bio import AlignIO
+from b2bTools.multipleSeq.Predictor import MineSuiteMSA
+
+tools = [${efoldmine ? '"efoldmine",' : ''} ${disomine ? '"disomine"' : ''}]
+
+DynaMine = True
+DisoMine = 'disomine' in tools
+EFoldMine = 'efoldmine' in tools
+
+msaSuite = MineSuiteMSA()
+
+if DynaMine and not DisoMine and not EFoldMine:
+    msaSuite.predictAndMapSeqsFromMSA(f'$msa', predTypes = ('dynamine'))
+elif DisoMine and not DynaMine and not EFoldMine:
+    msaSuite.predictAndMapSeqsFromMSA(f'$msa', predTypes = ('disoMine'))
+elif EFoldMine and not DynaMine and not DisoMine:
+    msaSuite.predictAndMapSeqsFromMSA(f'$msa', predTypes = ('eFoldMine'))
+elif DynaMine and DisoMine and not EFoldMine:
+    msaSuite.predictAndMapSeqsFromMSA(f'$msa', predTypes = ('disoMine', 'dynamine'))
+elif DynaMine and EFoldMine and not DisoMine:
+    msaSuite.predictAndMapSeqsFromMSA(f'$msa', predTypes = ('eFoldMine','dynamine'))
+elif DisoMine and EFoldMine and not DynaMine:
+    msaSuite.predictAndMapSeqsFromMSA(f'$msa', predTypes = ('eFoldMine', 'disoMine'))
+elif DisoMine and EFoldMine and DynaMine:
+    msaSuite.predictAndMapSeqsFromMSA(f'$msa', predTypes = ('eFoldMine', 'disoMine', 'dynamine'))
+
+msaSuite.getDistributions()
+jsondata_list = [msaSuite.alignedPredictionDistribs]
+
+if DynaMine and not DisoMine and not EFoldMine:
+    NB_SUBPLOTS = 6
+    PREDICTION_TITLES = {
+        'backbone': "DynaMine backbone dynamics",
+        'sidechain': "DynaMine sidechain dynamics",
+        'ppII': "DynaMine conformational propensities: ppII (polyproline II)",
+        'coil': "DynaMine conformational propensities: Coil",
+        'sheet': "DynaMine conformational propensities: Sheet",
+        'helix': "DynaMine conformational propensities: Helix",
+    }
+
+    PREDICTION_POSITION = {
+        'backbone':     0,
+        'sidechain':    1,
+        'ppII':         2,
+        'coil':         3,
+        'sheet':        4,
+        'helix':        5,
+    }
+
+elif DisoMine and not DynaMine and not EFoldMine:
+    NB_SUBPLOTS = 1
+    PREDICTION_TITLES = {
+        'disoMine': "Disorder (disoMine)"
+    }
+
+    PREDICTION_POSITION = {
+        'disoMine': 0
+    }
+
+elif EFoldMine and not DisoMine and not DynaMine:
+    NB_SUBPLOTS = 1
+
+    PREDICTION_TITLES = {
+        'earlyFolding': "Early folding (EFoldMine)"
+    }
+
+    PREDICTION_POSITION = {
+        'earlyFolding': 0
+    }
+
+elif DynaMine and DisoMine and not EFoldMine:
+    NB_SUBPLOTS = 7
+    PREDICTION_TITLES = {
+        'backbone': "DynaMine backbone dynamics",
+        'sidechain': "DynaMine sidechain dynamics",
+        'ppII': "DynaMine conformational propensities: ppII (polyproline II)",
+        'coil': "DynaMine conformational propensities: Coil",
+        'sheet': "DynaMine conformational propensities: Sheet",
+        'helix': "DynaMine conformational propensities: Helix",
+        'disoMine': "Disorder (disoMine)"
+    }
+
+    PREDICTION_POSITION = {
+        'backbone':     0,
+        'sidechain':    1,
+        'ppII':         2,
+        'coil':         3,
+        'sheet':        4,
+        'helix':        5,
+        'disoMine':     6
+    }
+
+elif DynaMine and EFoldMine and not DisoMine:
+    NB_SUBPLOTS = 7
+    PREDICTION_TITLES = {
+        'backbone': "DynaMine backbone dynamics",
+        'sidechain': "DynaMine sidechain dynamics",
+        'ppII': "DynaMine conformational propensities: ppII (polyproline II)",
+        'coil': "DynaMine conformational propensities: Coil",
+        'sheet': "DynaMine conformational propensities: Sheet",
+        'helix': "DynaMine conformational propensities: Helix",
+        'earlyFolding': "Early folding (EFoldMine)"
+    }
+
+    PREDICTION_POSITION = {
+        'backbone':     0,
+        'sidechain':    1,
+        'ppII':         2,
+        'coil':         3,
+        'sheet':        4,
+        'helix':        5,
+        'earlyFolding': 6
+    }
+elif EFoldMine and DisoMine and not DynaMine:
+    NB_SUBPLOTS = 2
+    PREDICTION_TITLES = {
+        'earlyFolding': "Early folding (EFoldMine)",
+        'disoMine': "Disorder (disoMine)"
+    }
+
+    PREDICTION_POSITION = {
+        'earlyFolding': 0,
+        'disoMine':     1
+    }
+elif DynaMine and DisoMine and EFoldMine:
+    NB_SUBPLOTS = 8
+    PREDICTION_TITLES = {
+        'backbone': "DynaMine backbone dynamics",
+        'sidechain': "DynaMine sidechain dynamics",
+        'ppII': "DynaMine conformational propensities: ppII (polyproline II)",
+        'coil': "DynaMine conformational propensities: Coil",
+        'sheet': "DynaMine conformational propensities: Sheet",
+        'helix': "DynaMine conformational propensities: Helix",
+        'earlyFolding': "Early folding (EFoldMine)",
+        'disoMine': "Disorder (disoMine)"
+    }
+
+    PREDICTION_POSITION = {
+        'backbone':     0,
+        'sidechain':    1,
+        'ppII':         2,
+        'coil':         3,
+        'sheet':        4,
+        'helix':        5,
+        'earlyFolding': 6,
+        'disoMine':     7
+    }
+
+AXIS_TITLES = {
+    "x": "Residue position in the MSA",
+    "y": "Prediction values"
+}
+
+def plot_biophysical_msa(jsondata_list_interest, jsondata_list_selected, sequences, freq_gap, selected_prot):
+    colors = ['blue', 'orange']
+    residues_count = len(jsondata_list_interest[0]['backbone']['median'])
+    sequences_count = len(sequences)
+
+    #Plot representation
+    fig, axs = plt.subplots(NB_SUBPLOTS)
+    fig.set_figwidth(20)
+    fig.set_figheight(50)
+
+    plt.suptitle(f'Predicted biophysical properties of the MSA: {residues_count} aligned residues from {sequences_count} sequences', fontsize=14)
+
+    # These for loops got too complicated, I have to think
+    # something simpler to handle the None values in the data
+    predictions = jsondata_list_interest[0].keys()
+    for prediction_index, biophys_data in enumerate(predictions):
+        if biophys_data == 'agmata':
+            continue
+
+        subplot_index_row = PREDICTION_POSITION[biophys_data]
+
+        ax = axs[subplot_index_row]
+        for data, col in zip(jsondata_list_interest, colors):
+            none_idx = []
+
+            for n in range(residues_count):
+                if data[biophys_data]['median'][n] == None \
+                        or data[biophys_data][
+                    'firstQuartile'][n] == None \
+                        or data[biophys_data][
+                    'thirdQuartile'][n] == None:
+                    none_idx.append(n)
+
+            range_list = []
+            for n in range(len(none_idx)):
+                try:
+                    if none_idx[n] + 1 != none_idx[n + 1]:
+                        range_list.append(
+                            (none_idx[n] + 1, none_idx[n + 1]))
+                    else:
+                        continue
+                except:
+                    if len(none_idx) == 1:
+                        range_list.append((0, none_idx[0]))
+                        range_list.append((none_idx[0] + 1, len(
+                            data[biophys_data][
+                                'median'])))
+
+                    else:
+                        range_list.append((0, none_idx[0]))
+                        range_list.append((none_idx[-1] + 1, len(
+                            data[biophys_data][
+                                'median'])))
+
+            # When there are None values in the data
+            if range_list:
+                for tuple in range_list:
+                    x = np.arange(tuple[0], tuple[1], 1)
+                    firstq = \
+                        data[biophys_data][
+                            'firstQuartile'][
+                        tuple[0]:tuple[1]]
+                    thirdq = \
+                        data[biophys_data][
+                            'thirdQuartile'][
+                        tuple[0]:tuple[1]]
+                    bottom = \
+                        data[biophys_data][
+                            'bottomOutlier'][
+                        tuple[0]:tuple[1]]
+                    top = \
+                        data[biophys_data]['topOutlier'][
+                        tuple[0]:tuple[1]]
+                    ax.fill_between(
+                        x, firstq, thirdq, alpha=0.3, color=col, label='1st-3rd Quartiles')
+                    ax.fill_between(
+                        x, bottom, top, alpha=0.1, color=col, label='Outliers')
+
+            # When there aren't None values in the data
+            else:
+                x = np.arange(0, len(
+                    data[biophys_data]['median']), 1)
+                firstq = data[biophys_data][
+                    'firstQuartile']
+                thirdq = data[biophys_data][
+                    'thirdQuartile']
+                bottom = data[biophys_data][
+                    'bottomOutlier']
+                top = data[biophys_data]['topOutlier']
+                ax.fill_between(
+                    x, firstq, thirdq, alpha=0.3, color=col, label='1st-3rd Quartiles')
+                ax.fill_between(
+                    x, bottom, top, alpha=0.1, color=col, label='Outliers')
+
+            ax.plot(data[biophys_data]['median'], linewidth=1.25, color=col, label='Median')
+
+            #Add the selected protein if there are some
+            colors_2 = ['magenta', 'blue', 'cyan'] #adapt in function of number of proteins of interest, now max 3 can be studied simultanously
+
+            if len(selected_prot)>0:
+                for count, prot in enumerate(selected_prot):
+                    ax.plot(jsondata_list_selected[count][0][biophys_data], '-x', linewidth=1.5, color=colors_2[count], label=f'Prediction {prot}')
+
+            #To represent the amount of sequences at every column of the MSA
+            limits = [0.25,0.5,0.75,1]
+            limit_previous = 0
+            size = 20
+            for limit in limits:
+                plot_x = []
+                plot_y = []
+                for idx, freq in enumerate(freq_gap):
+                    if limit_previous < freq <= limit:
+                        plot_x.append(idx)
+                        plot_y.append(data[biophys_data]['median'][idx])
+                ax.scatter(plot_x,plot_y,marker='o',s=size, color=col)
+                limit_previous = limit
+                size += 15
+
+        ax.set_title(PREDICTION_TITLES[biophys_data])
+        ax.axis([0, residues_count-1, min(bottom)-0.05, max(top)+0.05])
+
+        ax.set_ylabel(AXIS_TITLES['y'])
+        ax.set_xlabel(AXIS_TITLES['x'])
+
+        if biophys_data == 'backbone':
+            ax.axhline(y=1.0, color='green', linewidth= 1.5, linestyle='-.', label='Above: Membrane spaning') #Membrane spaning
+            ax.axhline(y=0.8, color='orange', linewidth= 1.5, linestyle='-.', label='Above: Rigid') #Membrane spaning
+            if min(bottom)-0.05 < 0.69:
+                ax.axhline(y=0.69, color='red', linewidth= 1.5, linestyle='-.', label='Above: Context dependent \\nBelow: Flexible') #context dependent (either rigide or flexible)
+        if biophys_data == 'earlyFolding':
+            ax.axhline(y=0.169, color='red', linewidth= 1.5, linestyle='-.', label='Above: Likely to start folding') #above: likely start protein folding process
+        if biophys_data == 'disoMine':
+            ax.axhline(y=0.5, color='red', linewidth= 1.5, linestyle='-.', label='Above: Likely to be disordered') #above: likely disordered
+        ax.legend(ncol=1, bbox_to_anchor =(1.01,0.5), loc='center left')
+
+    plt.tight_layout()
+    fig.subplots_adjust(top=0.96, hspace = 0.2)
+
+    plot_name = re.sub(r'[^\\w.-]+', '_', selected_prot[0].replace(' ', '_'))
+
+    plt.savefig('${msa.baseName}' + '_' + plot_name + '_msa_biophysical_conservation.pdf')
+    plt.savefig('${msa.baseName}' + '_' + plot_name + '_msa_biophysical_conservation.png')
+
+    return fig, axs
+
+alignment_file = AlignIO.read('$msa', 'fasta')
+counter = [0] * alignment_file.get_alignment_length()
+total_seq = len(alignment_file)
+for prot in alignment_file:
+    selected_prot_seq=list(prot.seq)
+    for position,residue in enumerate(selected_prot_seq):
+        if residue != "-":
+            counter[position] +=1
+freq_gap = [i/total_seq for i in counter]
+
+for prot in alignment_file:
+    jsondata_list = [msaSuite.alignedPredictionDistribs]
+    jsondata_list_selected = []
+
+    predictions_single_seq = msaSuite.allAlignedPredictions
+    jsondata_list_selected.append([predictions_single_seq[prot.id]])
+
+    sequences =  msaSuite.seqs
+    plot_biophysical_msa(jsondata_list, jsondata_list_selected, sequences, freq_gap, [prot.id])
     """
 }
 
