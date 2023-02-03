@@ -1,24 +1,19 @@
 process fetchStructure {
-    publishDir "${resultsDirectoryPath}", mode: 'copy'
-
-    tag "$id"
+    publishDir "${resultsDirectory}", mode: 'copy'
+    tag "${id}_${desc}.pdb"
+    errorStrategy 'ignore'
 
     input:
-    path resultsDirectoryPath
-    tuple val(id), val(sequence)
+    path resultsDirectory
+    tuple val(id), val(desc), val(sequence)
 
     output:
     path "*.pdb", emit: esmStructures
 
-    when:
-    params.fetchStructures
-
     script:
     """
     echo Folding sequence using ESM Atlas
-    curl -X POST --data "$sequence" https://api.esmatlas.com/foldSequence/v1/pdb/ > ${id}.pdb
-    echo Preview of the PDB content
-    head ${id}.pdb
-    tail ${id}.pdb
+
+    curl -X POST --data "$sequence" https://api.esmatlas.com/foldSequence/v1/pdb/ > ${id}_${desc}.pdb
     """
 }

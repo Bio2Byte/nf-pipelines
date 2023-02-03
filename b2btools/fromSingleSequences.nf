@@ -22,18 +22,12 @@ log.info """\
 
 Usage:
 
-\$ nextflow run -resume fromSingleSequences.nf \
-
-    -profile standard,withdocker \
-
-    --targetSequences ../example.fasta \
-
-    --dynamine \
-
-    --efoldmine \
-
-    --disomine \
-
+\$ nextflow run -resume fromSingleSequences.nf \\
+    -profile standard,withdocker \\
+    --targetSequences ../example.fasta \\
+    --dynamine \\
+    --efoldmine \\
+    --disomine \\
     --agmata
 
 ================================
@@ -139,13 +133,18 @@ workflow {
         params.agmata,
         params.psper
     )
-    fetchStructure(params.resultsDirectory, sequencesFiltered.map { record -> [id: record.id, seqString: record.seqString.take(400)] })
+    if (params.fetchStructures) {
+        fetchStructure(params.resultsDirectory, sequencesFiltered.map { record -> [id: record.id, seqString: record.seqString.take(400)] })
+        structures = fetchStructure.out.esmStructures
+    } else {
+        structures = Channel.empty()
+    }
 
     compressPredictions(
         predictBiophysicalFeatures.out.predictions,
         predictBiophysicalFeatures.out.index,
         plotBiophysicalFeatures.out.plots,
-        fetchStructure.out.esmStructures
+        structures
     )
 }
 

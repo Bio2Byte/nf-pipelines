@@ -1,10 +1,9 @@
 process predictBiophysicalFeatures {
-    publishDir "${resultsDirectoryPath}", mode: 'copy'
-
-    tag "${sequences.baseName}"
+    publishDir "${resultsDirectory}", mode: 'copy'
+    tag "${sequences.name}"
 
     input:
-    path resultsDirectoryPath
+    path resultsDirectory
     path sequences
 
     output:
@@ -20,7 +19,7 @@ process predictBiophysicalFeatures {
     from b2bTools import MultipleSeq
     import json
 
-    tool_list = [${params.efoldmine ? '"efoldmine,"' : ''} ${params.disomine ? '"disomine,"' : ''}]
+    tool_list = [${params.efoldmine ? '"efoldmine",' : ''} ${params.disomine ? '"disomine",' : ''}]
     tool_list=[x for x in tool_list if x]
 
     msaSeq = MultipleSeq()
@@ -32,10 +31,11 @@ process predictBiophysicalFeatures {
 }
 
 process buildMultipleSequenceAlignment {
-    publishDir "$resultsDirectoryPath", mode: 'copy'
+    publishDir "$resultsDirectory", mode: 'copy'
+    tag "${sequences.name}"
 
     input:
-    path resultsDirectoryPath
+    path resultsDirectory
     path sequences
 
     output:
@@ -51,15 +51,14 @@ process buildMultipleSequenceAlignment {
 }
 
 process takeMultipleSequenceAlignment {
+    tag "${sequences.name}"
+
     input:
-    path resultsDirectoryPath
+    path resultsDirectory
     path sequences
 
     output:
     path "*.msa", emit: multipleSequenceAlignment
-
-    when:
-    params.alignSingleSequences == false
 
     script:
     """
@@ -69,10 +68,11 @@ process takeMultipleSequenceAlignment {
 }
 
 process buildPhylogeneticTree {
-    publishDir "$resultsDirectoryPath", mode: 'copy'
+    publishDir "$resultsDirectory", mode: 'copy'
+    tag "${multipleSequenceAlignment.name}"
 
     input:
-    path resultsDirectoryPath
+    path resultsDirectory
     path multipleSequenceAlignment
 
     output:
@@ -85,10 +85,11 @@ process buildPhylogeneticTree {
 }
 
 process buildLogo {
-    publishDir "$resultsDirectoryPath", mode: 'copy'
+    publishDir "$resultsDirectory", mode: 'copy'
+    tag "${multipleSequenceAlignment.name}"
 
     input:
-    path resultsDirectoryPath
+    path resultsDirectory
     path multipleSequenceAlignment
 
     output:

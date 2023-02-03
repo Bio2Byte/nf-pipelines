@@ -1,6 +1,6 @@
 process plotBiophysicalFeatures {
     publishDir "${resultsDirectory}", mode: 'copy'
-    tag "${predictions.baseName}"
+    tag "${predictions.name}"
 
     input:
     path resultsDirectory
@@ -262,7 +262,7 @@ if 'psp' in tools:
 
 process plotBiophysicalFeaturesOverview {
     publishDir "${resultsDirectory}", mode: 'copy'
-    tag "${msa.baseName}"
+    tag "${msa.name}"
 
     input:
     path resultsDirectory
@@ -613,10 +613,11 @@ for prot in alignment_file:
 
 
 process plotPhylogeneticTree {
-    publishDir "${resultsDirectoryPath}", mode: 'copy'
+    publishDir "${resultsDirectory}", mode: 'copy'
+    tag "${tree.name}"
 
     input:
-    path resultsDirectoryPath
+    path resultsDirectory
     path tree
 
     output:
