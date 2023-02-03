@@ -6,3 +6,6 @@ results/
 testing/
 testing*
 *.pyc
+report.html*
+diagram.png*
+flowchart.png*
