@@ -4,6 +4,7 @@
 params.executionTimestamp = new java.text.SimpleDateFormat("yyyy_MM_dd_HH_mm_ss").format(new Date())
 
 // Available predictors:
+params.dynamine        = true
 params.efoldmine       = false
 params.disomine        = false
 params.fetchStructures = false

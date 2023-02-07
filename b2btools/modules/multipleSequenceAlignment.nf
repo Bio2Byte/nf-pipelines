@@ -1,6 +1,5 @@
 process predictBiophysicalFeatures {
     tag "${sequences.name}"
-    debug true
 
     input:
     path sequences
@@ -14,22 +13,23 @@ process predictBiophysicalFeatures {
     """
     #!/usr/local/bin/python
 
-    import matplotlib.pyplot as plt
-    from b2bTools import MultipleSeq
     import json
+    from b2bTools.multipleSeq.Predictor import MineSuiteMSA
+
 
     with open('$sequences', 'r') as file:
         print(file.read())
 
-    tool_list = [${params.efoldmine ? '"efoldmine",' : ''} ${params.disomine ? '"disomine",' : ''}]
-    tool_list=[x for x in tool_list if x]
+    msaSuite = MineSuiteMSA()
+    msaSuite.predictAndMapSeqsFromMSA('$sequences', predTypes = (${params.dynamine ? '"dynamine",' : ''} ${params.efoldmine ? '"efoldmine",' : ''} ${params.disomine ? '"disomine",' : ''}))
 
-    msaSeq = MultipleSeq()
-    msaSeq.from_aligned_file('$sequences',tools=tool_list)
+    predictions=msaSuite.getDistributions()
+    #jsondata_list = [msaSuite.alignedPredictionDistribs]  
 
-    predictions = msaSeq.get_all_predictions_msa()
     json.dump(predictions, open('b2b_msa_results_${sequences.baseName}.json', 'w'), indent=2)
     """
+
+    
 }
 
 process buildMultipleSequenceAlignment {
