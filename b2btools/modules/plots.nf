@@ -1,9 +1,8 @@
 process plotBiophysicalFeatures {
-    publishDir "${resultsDirectory}", mode: 'copy'
     tag "${predictions.name}"
+    debug true
 
     input:
-    path resultsDirectory
     path predictions
     val dynamine
     val efoldmine
@@ -261,11 +260,10 @@ if 'psp' in tools:
 }
 
 process plotBiophysicalFeaturesOverview {
-    publishDir "${resultsDirectory}", mode: 'copy'
     tag "${msa.name}"
+    debug true
 
     input:
-    path resultsDirectory
     path msa
     val efoldmine
     val disomine
@@ -563,6 +561,11 @@ def plot_biophysical_msa(jsondata_list_interest, jsondata_list_selected, sequenc
                 size += 15
 
         ax.set_title(PREDICTION_TITLES[biophys_data])
+        print(PREDICTION_TITLES[biophys_data])
+        print('residues_count-1', residues_count-1)
+        print('bottom', bottom)
+        print('top', top)
+
         ax.axis([0, residues_count-1, min(bottom)-0.05, max(top)+0.05])
 
         ax.set_ylabel(AXIS_TITLES['y'])
@@ -613,11 +616,9 @@ for prot in alignment_file:
 
 
 process plotPhylogeneticTree {
-    publishDir "${resultsDirectory}", mode: 'copy'
     tag "${tree.name}"
 
     input:
-    path resultsDirectory
     path tree
 
     output:

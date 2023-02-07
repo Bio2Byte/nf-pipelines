@@ -1,6 +1,6 @@
 #!/usr/bin/env nextflow
 
-// RUN: nextflow run fromMSA.nf --targetSequences ../input_example.fasta -profile standard,withdocker --efoldmine --disomine --alignSingleSequences
+// RUN: nextflow run fromMSA.nf --targetSequences ../input_example.fasta -profile standard,withdocker --efoldmine --disomine --alignSequences
 params.executionTimestamp = new java.text.SimpleDateFormat("yyyy_MM_dd_HH_mm_ss").format(new Date())
 
 // Available predictors:
@@ -9,15 +9,14 @@ params.disomine        = false
 params.fetchStructures = false
 
 // MSA parameters:
-params.alignSingleSequences = false
+params.alignSequences = false
 
 // Input files
 params.targetSequences  = "$launchDir/example.fasta"
-allSequences            = Channel.fromPath(params.targetSequences)
 targetSequencesFile     = file(params.targetSequences)
-params.resultsDirectory = "$projectDir/${params.executionTimestamp}"
-params.compressedFile   = "$projectDir/${targetSequencesFile.simpleName}_${params.executionTimestamp}.tar.gz"
-params.groupBy          = 10
+allSequences            = Channel.fromPath(params.targetSequences)
+
+params.compressedFile   = "${targetSequencesFile.simpleName}_${params.executionTimestamp}"
 
 // Output files
 params.plotBiophysicalFeatures = false
@@ -30,8 +29,8 @@ log.info """\
 Usage:
 
 \$ nextflow run fromMSA.nf \\
-    -with-report \\
-    -with-dag flowchart.png \\
+    -with-report report_fromMsa.html \\
+    -with-dag flowchart_fromMSA.png \\
     -profile standard,withdocker \\
     --targetSequences ../input_example.fasta \\
     --plotBiophysicalFeatures \\
@@ -41,7 +40,7 @@ Usage:
     --efoldmine \\
     --disomine \\
     --fetchStructures \\
-    --alignSingleSequences
+    --alignSequences
 
 ================================================================================
                                 LIST OF PARAMETERS
@@ -51,13 +50,11 @@ Usage:
 Launch dir      : $launchDir
 Project dir     : $projectDir
 Execution time  : $params.executionTimestamp
-Results dir     : $params.resultsDirectory
-Compressed file : $params.compressedFile
+Compressed file : ${params.compressedFile}.tar.gz
 ================================================================================
                                 INPUT FILES
 
 Input-file (--targetSequences) : $params.targetSequences
-JSON page size (--groupBy)     : $params.groupBy
 ================================================================================
                                 OUTPUT FILES
 
@@ -77,28 +74,34 @@ Fetch structures (--fetchStructures) : $params.fetchStructures
                                 SINGLE SEQ or MSA
 
 MSA mode                               : true
-Align for MSA (--alignSingleSequences) : $params.alignSingleSequences
+Align for MSA (--alignSequences) : $params.alignSequences
 ================================================================================
 """
 
 // Processing input
+// TO BE DISCUSSED
 allSequences
-    .splitFasta( record: [id: true, seqString: true, sequence: true, desc: true ])
+    .splitFasta( record: [header: true, seqString: true, sequence: true ])
     .branch {
         valid:  it.seqString.size() >= 5 && it.seqString.size() < 2000
         invalid: it.seqString.size() < 5 || it.seqString.size() >= 2000
     }.set { result }
 
-sequencesRemoved = result.invalid
-    .collectFile(name: "${params.resultsDirectory}/${targetSequencesFile.baseName}_sequences_ignored.fasta", newLine: true) {
-        item -> '>' + item.id + '_' + item.desc + '\n' + item.sequence + '\n'
-    }.subscribe {
-        println "Ignored entries are saved to file: $it"
-    }
+result.valid.view { "VALID >${it.header}" }
+result.invalid.view { "INVALID >${it.header}" }
 
-sequencesSanitized = result.valid.map { record -> [id: record.id.replaceAll("[^a-zA-Z0-9]", "_"), desc: record.desc.replaceAll("[^a-zA-Z0-9]", "_"), seqString: record.seqString, sequence: record.sequence] }
+sequencesSanitized = result.valid.map { record -> [
+    header: record.header.replaceAll("[^a-zA-Z0-9]", "_"),
+    seqString: record.seqString.toUpperCase(),
+    sequence: record.sequence.toUpperCase()
+] }
+
 sequencesFiltered = sequencesSanitized.collectFile(name: "${targetSequencesFile.baseName}_filtered.fasta", newLine: true) {
-    item -> '>' + item.id + '_' + item.desc + '\n' + item.sequence + '\n'
+    item -> '>' + item.header + '\n' + item.sequence + '\n'
+}
+
+sequencesRemoved = result.invalid.collectFile(name: "${targetSequencesFile.baseName}_sequences_ignored.fasta", newLine: true) {
+    item -> '>' + item.header + '\n' + item.sequence + '\n'
 }
 
 // Modules
@@ -111,7 +114,7 @@ include {
 } from "${launchDir}/modules/multipleSequenceAlignment"
 
 include {
-    fetchStructure;
+    fetchEsmAtlasStructure
 } from "${launchDir}/modules/structures"
 
 include {
@@ -119,66 +122,50 @@ include {
     plotPhylogeneticTree;
 } from "${launchDir}/modules/plots"
 
-// Processes
-process compressPredictions {
-    debug true
-
-    input:
-    val multipleSequenceAlignment
-    val tree
-    val treePlot
-    val logo
-    val predictions
-    val plots
-    val documents
-    val esmStructures
-    // val sequencesRemoved
-
-    script:
-    """
-    echo Creating compressed file: ${params.compressedFile}
-    echo Content of compressed: ${params.resultsDirectory}
-
-    # tar -czvf ${params.compressedFile} -C / ${params.resultsDirectory}
-    """
-}
+include { compressDirectory } from "${launchDir}/modules/utils"
 
 // Workflows
 workflow {
-    if (params.alignSingleSequences) {
-        buildMultipleSequenceAlignment(params.resultsDirectory, sequencesFiltered)
+    if (params.alignSequences) {
+        buildMultipleSequenceAlignment(sequencesFiltered)
         multipleSequenceAlignment = buildMultipleSequenceAlignment.out.multipleSequenceAlignment
     } else {
-        takeMultipleSequenceAlignment(allSequences)
+        takeMultipleSequenceAlignment(sequencesFiltered)
         multipleSequenceAlignment = takeMultipleSequenceAlignment.out.multipleSequenceAlignment
     }
 
     if (params.buildTree) {
-        buildPhylogeneticTree(params.resultsDirectory, multipleSequenceAlignment)
+        buildPhylogeneticTree(multipleSequenceAlignment)
         phylogeneticTree = buildPhylogeneticTree.out.tree
 
         if (params.plotTree) {
-            plotPhylogeneticTree(params.resultsDirectory, phylogeneticTree)
+            plotPhylogeneticTree(phylogeneticTree)
             plottedPhylogeneticTree = plotPhylogeneticTree.out.treePlot
         } else {
+            println "Skipping Phylogenetic tree plot from MSA: ${targetSequencesFile}"
+
             plottedPhylogeneticTree = Channel.empty()
         }
     } else {
+        println "Skipping Phylogenetic tree from MSA: ${targetSequencesFile}"
+        println "Skipping Phylogenetic tree plot from MSA: ${targetSequencesFile}"
+
         phylogeneticTree = Channel.empty()
         plottedPhylogeneticTree = Channel.empty()
     }
 
     if (params.buildLogo) {
-        buildLogo(params.resultsDirectory, multipleSequenceAlignment)
+        buildLogo(multipleSequenceAlignment)
         logo = buildLogo.out.logo
     } else {
+        println "Skipping Logo from MSA: ${targetSequencesFile}"
+
         logo = Channel.empty()
     }
 
-    predictBiophysicalFeatures(params.resultsDirectory, multipleSequenceAlignment)
+    predictBiophysicalFeatures(multipleSequenceAlignment)
     if (params.plotBiophysicalFeatures) {
         plotBiophysicalFeatures(
-            params.resultsDirectory,
             multipleSequenceAlignment,
             params.efoldmine,
             params.disomine
@@ -186,18 +173,23 @@ workflow {
         plottedBiophysicalFeaturesInPNG = plotBiophysicalFeatures.out.plots
         plottedBiophysicalFeaturesInPDF = plotBiophysicalFeatures.out.documents
     } else {
+        println "Skipping Biophysical features plots from MSA: ${targetSequencesFile}"
+
         plottedBiophysicalFeaturesInPNG = Channel.empty()
         plottedBiophysicalFeaturesInPDF = Channel.empty()
     }
 
     if (params.fetchStructures) {
-        fetchStructure(params.resultsDirectory, sequencesSanitized.map { record -> [id: record.id, desc: record.desc, seqString: record.seqString.take(400)] })
-        structures = fetchStructure.out.esmStructures
+        // TO BE FIXED WHEN MSA input file (400 residues)
+        fetchEsmAtlasStructure(sequencesSanitized.map { record -> [header: record.header, seqString: record.seqString.take(400)] })
+        structures = fetchEsmAtlasStructure.out.esmStructures
     } else {
+        println "Skipping fetching structures from EsmAtlas for sequences: ${targetSequencesFile}"
+
         structures = Channel.empty()
     }
 
-    compressPredictions(
+    filesToCompress = Channel.empty().mix(
         multipleSequenceAlignment,
         phylogeneticTree,
         plottedPhylogeneticTree,
@@ -206,17 +198,20 @@ workflow {
         plottedBiophysicalFeaturesInPNG,
         plottedBiophysicalFeaturesInPDF,
         structures,
-        // sequencesRemoved
-    )
+        sequencesRemoved
+    ).collect()
+
+    compressDirectory(params.compressedFile, filesToCompress)
 }
 
 workflow.onComplete {
     println "Pipeline completed at               : $workflow.complete"
     println "Time to complete workflow execution : $workflow.duration"
     println "Execution status                    : ${workflow.success ? 'Success' : 'Failed' }"
-    println "Compressed file                     : $params.compressedFile"
+    println "Compressed file                     : $projectDir/${params.compressedFile}.tar.gz"
 }
 
 workflow.onError {
     println "Oops... Pipeline execution stopped with the following message: ${workflow.errorMessage}"
+    println "Details: \n ${workflow.errorReport}"
 }

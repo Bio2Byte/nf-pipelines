@@ -1,9 +1,7 @@
 process predictBiophysicalFeatures {
-    publishDir "$resultsDirectory", mode: 'copy'
     tag "${sequences.name}"
 
     input:
-    path resultsDirectory
     path sequences
     val dynamine
     val efoldmine

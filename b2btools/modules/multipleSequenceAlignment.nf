@@ -1,9 +1,8 @@
 process predictBiophysicalFeatures {
-    publishDir "${resultsDirectory}", mode: 'copy'
     tag "${sequences.name}"
+    debug true
 
     input:
-    path resultsDirectory
     path sequences
 
     output:
@@ -19,6 +18,9 @@ process predictBiophysicalFeatures {
     from b2bTools import MultipleSeq
     import json
 
+    with open('$sequences', 'r') as file:
+        print(file.read())
+
     tool_list = [${params.efoldmine ? '"efoldmine",' : ''} ${params.disomine ? '"disomine",' : ''}]
     tool_list=[x for x in tool_list if x]
 
@@ -31,18 +33,13 @@ process predictBiophysicalFeatures {
 }
 
 process buildMultipleSequenceAlignment {
-    publishDir "$resultsDirectory", mode: 'copy'
     tag "${sequences.name}"
 
     input:
-    path resultsDirectory
     path sequences
 
     output:
     path "*.msa", emit: multipleSequenceAlignment
-
-    when:
-    params.alignSingleSequences == true
 
     script:
     """
@@ -54,7 +51,6 @@ process takeMultipleSequenceAlignment {
     tag "${sequences.name}"
 
     input:
-    path resultsDirectory
     path sequences
 
     output:
@@ -68,11 +64,9 @@ process takeMultipleSequenceAlignment {
 }
 
 process buildPhylogeneticTree {
-    publishDir "$resultsDirectory", mode: 'copy'
     tag "${multipleSequenceAlignment.name}"
 
     input:
-    path resultsDirectory
     path multipleSequenceAlignment
 
     output:
@@ -85,11 +79,9 @@ process buildPhylogeneticTree {
 }
 
 process buildLogo {
-    publishDir "$resultsDirectory", mode: 'copy'
     tag "${multipleSequenceAlignment.name}"
 
     input:
-    path resultsDirectory
     path multipleSequenceAlignment
 
     output:

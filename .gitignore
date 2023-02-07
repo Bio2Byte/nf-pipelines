@@ -6,6 +6,10 @@ results/
 testing/
 testing*
 *.pyc
-report.html*
-diagram.png*
-flowchart.png*
+report*.html
+report*.html*.*
+diagram*.png
+diagram*.png*.*
+flowchart*.png*
+flowchart*.png*.*
+*.tar.gz
