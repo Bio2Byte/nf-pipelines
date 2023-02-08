@@ -209,7 +209,7 @@ workflow.onComplete {
     println "Pipeline completed at               : $workflow.complete"
     println "Time to complete workflow execution : $workflow.duration"
     println "Execution status                    : ${workflow.success ? 'Success' : 'Failed' }"
-    println "Compressed file                     : $projectDir/${params.compressedFile}.tar.gz"
+    println "Compressed file                     : $launchDir/${params.compressedFile}.tar.gz"
 }
 
 workflow.onError {

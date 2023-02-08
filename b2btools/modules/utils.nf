@@ -1,5 +1,5 @@
 process compressDirectory {
-    publishDir "$projectDir", mode: "copy"
+    publishDir "$launchDir", mode: "copy"
 
     input:
     val compressedFileName
