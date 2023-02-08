@@ -16,20 +16,16 @@ process predictBiophysicalFeatures {
     import json
     from b2bTools.multipleSeq.Predictor import MineSuiteMSA
 
-
-    with open('$sequences', 'r') as file:
-        print(file.read())
-
     msaSuite = MineSuiteMSA()
     msaSuite.predictAndMapSeqsFromMSA('$sequences', predTypes = (${params.dynamine ? '"dynamine",' : ''} ${params.efoldmine ? '"efoldmine",' : ''} ${params.disomine ? '"disomine",' : ''}))
 
     predictions=msaSuite.getDistributions()
-    #jsondata_list = [msaSuite.alignedPredictionDistribs]  
+    #jsondata_list = [msaSuite.alignedPredictionDistribs]
 
     json.dump(predictions, open('b2b_msa_results_${sequences.baseName}.json', 'w'), indent=2)
     """
 
-    
+
 }
 
 process buildMultipleSequenceAlignment {

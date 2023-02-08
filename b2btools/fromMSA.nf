@@ -66,7 +66,7 @@ Phylo. Tree plot (--plotTree)     : $params.plotTree
 ================================================================================
                                 PREDICTORS
 
-DynaMine                             : ALWAYS
+DynaMine                             : true
 DisoMine (--disomine)                : $params.disomine
 EFoldMine (--efoldmine)              : $params.efoldmine
 PSP                                  : NOT IMPLEMENTED
@@ -74,7 +74,7 @@ Fetch structures (--fetchStructures) : $params.fetchStructures
 ================================================================================
                                 SINGLE SEQ or MSA
 
-MSA mode                               : true
+MSA mode                         : true
 Align for MSA (--alignSequences) : $params.alignSequences
 ================================================================================
 """
@@ -112,18 +112,18 @@ include {
     takeMultipleSequenceAlignment;
     buildPhylogeneticTree;
     buildLogo;
-} from "${launchDir}/modules/multipleSequenceAlignment"
+} from "${projectDir}/modules/multipleSequenceAlignment"
 
 include {
     fetchEsmAtlasStructure
-} from "${launchDir}/modules/structures"
+} from "${projectDir}/modules/structures"
 
 include {
     plotBiophysicalFeaturesOverview as plotBiophysicalFeatures;
     plotPhylogeneticTree;
-} from "${launchDir}/modules/plots"
+} from "${projectDir}/modules/plots"
 
-include { compressDirectory } from "${launchDir}/modules/utils"
+include { compressDirectory } from "${projectDir}/modules/utils"
 
 // Workflows
 workflow {

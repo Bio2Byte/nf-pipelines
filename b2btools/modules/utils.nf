@@ -1,6 +1,6 @@
 process compressDirectory {
     publishDir "$projectDir", mode: "copy"
-    debug true
+
     input:
     val compressedFileName
     path outputFiles
@@ -10,7 +10,6 @@ process compressDirectory {
 
     script:
     """
-    echo ${outputFiles}
     tar -czvhf ${compressedFileName}.tar.gz ${outputFiles}
     """
 }

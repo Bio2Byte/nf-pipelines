@@ -17,7 +17,7 @@ targetSequencesFile         = file(params.targetSequences)
 allSequences                = Channel.fromPath(params.targetSequences)
 
 params.compressedFile       = "${targetSequencesFile.simpleName}_${params.executionTimestamp}"
-params.groupBy              = 10
+params.sequencesPerJson              = 10
 
 log.info """\
 
@@ -48,7 +48,7 @@ Compressed file : $params.compressedFile
                                 INPUT FILES
 
 Input-file (--targetSequences) : $params.targetSequences
-JSON page size (--groupBy)     : $params.groupBy
+JSON page size (--sequencesPerJson)     : $params.sequencesPerJson
 ================================================================================
                                 OUTPUT FILES
 
@@ -62,11 +62,6 @@ EFoldMine (--efoldmine)              : $params.efoldmine
 AgMata (--agmata)                    : $params.agmata
 PSP (--psper)                        : $params.psper
 Fetch structures (--fetchStructures) : $params.fetchStructures
-================================================================================
-                                SINGLE SEQ or MSA
-
-MSA mode      : No
-Align for MSA : No
 ================================================================================
 """
 
@@ -103,22 +98,22 @@ sequencesGrouped = sequencesFiltered.splitFasta(record: [header: true, seqString
     .collectFile(name: "${targetSequencesFile.baseName}.fasta", newLine: true) {
         item -> '>' + item.header + '\n' + item.sequence + '\n'
     }
-    .splitFasta( file: true, by: params.groupBy )
+    .splitFasta( file: true, by: params.sequencesPerJson )
 
 // Modules
 include {
     fetchEsmAtlasStructure;
-} from "${launchDir}/modules/structures"
+} from "${projectDir}/modules/structures"
 
 include {
     plotBiophysicalFeatures;
-} from "${launchDir}/modules/plots"
+} from "${projectDir}/modules/plots"
 
 include {
     predictBiophysicalFeatures;
-} from "${launchDir}/modules/singleSequenceAnalysis"
+} from "${projectDir}/modules/singleSequenceAnalysis"
 
-include { compressDirectory } from "${launchDir}/modules/utils"
+include { compressDirectory } from "${projectDir}/modules/utils"
 
 // Workflows
 workflow {

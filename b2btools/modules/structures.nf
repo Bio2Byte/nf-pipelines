@@ -1,7 +1,6 @@
 process fetchEsmAtlasStructure {
     tag "${header}"
     errorStrategy 'ignore'
-    debug true
 
     input:
     tuple val(header), val(sequence)
