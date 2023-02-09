@@ -102,6 +102,7 @@ $ nextflow run Bio2Byte/nf-pipelines \
 
 This pipeline provides you structural predictions for protein sequences in FASTA format.
 
+- Pipeline accession: `nextflow run Bio2Byte/nf-pipelines -r main -main-script b2btools/fromSingleSequences.nf`
 - Input:
   - At least one valid protein sequence file in FASTA format.
 - Output:
@@ -118,49 +119,6 @@ This pipeline provides you structural predictions for protein sequences in FASTA
         - Beta aggregation propensity (**AgMata**)
       - "`<Sequence's name>_psp.png`" contains plots of:
         - Phase separation propensity (**PPser**)
-
-#### Quick example
-
-For these sequences in FASTA format:
-
-```fasta
->SEQ_BAD
-MA
->SEQ_ADR
-MAAAALVLVLLAVLAMAAAALVLVLLAVLAMAAAALVLVLLAVLAMAAAALVLVLLAVLA
->SEQ_SOP
-MALALSALALLALALAMAAAALVLVLLAVLAMAAAALVLVLLAVLAMAAAALVLVLLAVLAMAAAALVLVLLAVLAMAAAALVLVLLAVLA
-```
-
-The NextFlow command line example is:
-
-```shell
-$ nextflow run fromSingleSequences.nf \
-    -profile standard,withdocker \
-    --targetSequences ../example.fasta \
-    --dynamine \
-    --efoldmine \
-    --disomine \
-    --agmata \
-    --psper \
-    --fetchStructures \
-    --plotBiophysicalFeatures
-```
-
-This pipeline will generate a compressed file containing:
-
-```shell
-example_2023_02_08_11_13_22.tar.gz
-├── SEQ_ADR.pdb
-├── SEQ_SOP.pdb
-├── b2b_results_example.1.index
-├── b2b_results_example.1.json
-├── b2b_results_example.1_SEQ_ADR.png
-├── b2b_results_example.1_SEQ_ADR_psp.png
-├── b2b_results_example.1_SEQ_SOP.png
-├── b2b_results_example.1_SEQ_SOP_psp.png
-└── example_sequences_ignored.fasta
-```
 
 #### Parameters
 
@@ -185,10 +143,56 @@ example_2023_02_08_11_13_22.tar.gz
 
 [![](https://mermaid.ink/img/pako:eNp9VEtzmzAQ_isenciM40HCgMShM20evXU6dU7BOSggB80gRJGcxInz3yvAEpadhhO737fvXb2DQpYMZGBTy5eiop2e3V2vm5n52jAIriraNKxebDopflNdXVwcMBjkqq25vqVK0werRUH-2NGmqJwmCvJnzl6cvAyCmXMSn4DJMZgGuaCtw3CQF7KuWaFvec2cmnyuhuGn-UH4Hzr6nB4dJwS93GHsSV7qMPUknLcdK3mhf3DZVjvFC1rfMqq3HVMPlkSOTVDoSdCTkCd5KaJl3tbyqzgo9tuKknzDdFHdKPFd11StdLctegtnkE5bwESrd1MwMxLBXydX0yym8XuFRNAQhGmGUte8MzzZ7WycyCsrnF1eftvTul6xv1vWFEztTY9sr3rQxLNxRzH2xcj6HcWlXblRTHxyanduCKtszBVtuOZvrDTBsd1Dn2LWSLNuYMDQd0rsivoWf5iQz4MBwm5bRwvoKjyUCJFbUN_Jz05u2zGqczJUui93DRW8YR60HCC2kXV5hsWjGVfyDErGKTwJqqkHjH1qVcs6T48Pk1meKhyDnCbpuCg8S3LC4GmSE4T8JCcg8pKc9GMz-jtRx0P4YvbI7dZhfZDbn7FFyl6N5xGlp9WftgNZBXE3NPjbmMdJ3cmrw7Hs-9NxFzUw7B2xsn_IflHBPNJhfyIE5kCwTlBemjf-vYfXQFdMsDXIzO8jVeZv3XwY3rYtqWY3JTdnCTJTEZsDutVytWsKK4-ca06fOipAtqG1MtqWNiB7B68ggylekDSBOMRpgkiUzsEOZJcQLiAmOI4TvMRREsGPOXiT0ngIFyQiSUhSgkKCCYGDt_sB60N-_ANEmOkf?type=png)](https://mermaid.live/edit#pako:eNp9VEtzmzAQ_isenciM40HCgMShM20evXU6dU7BOSggB80gRJGcxInz3yvAEpadhhO737fvXb2DQpYMZGBTy5eiop2e3V2vm5n52jAIriraNKxebDopflNdXVwcMBjkqq25vqVK0werRUH-2NGmqJwmCvJnzl6cvAyCmXMSn4DJMZgGuaCtw3CQF7KuWaFvec2cmnyuhuGn-UH4Hzr6nB4dJwS93GHsSV7qMPUknLcdK3mhf3DZVjvFC1rfMqq3HVMPlkSOTVDoSdCTkCd5KaJl3tbyqzgo9tuKknzDdFHdKPFd11StdLctegtnkE5bwESrd1MwMxLBXydX0yym8XuFRNAQhGmGUte8MzzZ7WycyCsrnF1eftvTul6xv1vWFEztTY9sr3rQxLNxRzH2xcj6HcWlXblRTHxyanduCKtszBVtuOZvrDTBsd1Dn2LWSLNuYMDQd0rsivoWf5iQz4MBwm5bRwvoKjyUCJFbUN_Jz05u2zGqczJUui93DRW8YR60HCC2kXV5hsWjGVfyDErGKTwJqqkHjH1qVcs6T48Pk1meKhyDnCbpuCg8S3LC4GmSE4T8JCcg8pKc9GMz-jtRx0P4YvbI7dZhfZDbn7FFyl6N5xGlp9WftgNZBXE3NPjbmMdJ3cmrw7Hs-9NxFzUw7B2xsn_IflHBPNJhfyIE5kCwTlBemjf-vYfXQFdMsDXIzO8jVeZv3XwY3rYtqWY3JTdnCTJTEZsDutVytWsKK4-ca06fOipAtqG1MtqWNiB7B68ggylekDSBOMRpgkiUzsEOZJcQLiAmOI4TvMRREsGPOXiT0ngIFyQiSUhSgkKCCYGDt_sB60N-_ANEmOkf)
 
+#### Quick example
+
+For these sequences in FASTA format:
+
+```fasta
+>SEQ_BAD
+MA
+>SEQ_ADR
+MAAAALVLVLLAVLAMAAAALVLVLLAVLAMAAAALVLVLLAVLAMAAAALVLVLLAVLA
+>SEQ_SOP
+MALALSALALLALALAMAAAALVLVLLAVLAMAAAALVLVLLAVLAMAAAALVLVLLAVLAMAAAALVLVLLAVLAMAAAALVLVLLAVLA
+```
+
+The NextFlow command line example is:
+
+```shell
+$ nextflow run Bio2Byte/nf-pipelines \
+  -r main \
+  -main-script b2btools/fromSingleSequences.nf \
+  -profile standard,withdocker \
+  --targetSequences ./example.fasta \
+  --dynamine \
+  --efoldmine \
+  --disomine \
+  --agmata \
+  --psper \
+  --fetchStructures \
+  --plotBiophysicalFeatures
+```
+
+This pipeline will generate a compressed file containing:
+
+```shell
+example_2023_02_08_11_13_22.tar.gz
+├── SEQ_ADR.pdb
+├── SEQ_SOP.pdb
+├── b2b_results_example.1.index
+├── b2b_results_example.1.json
+├── b2b_results_example.1_SEQ_ADR.png
+├── b2b_results_example.1_SEQ_ADR_psp.png
+├── b2b_results_example.1_SEQ_SOP.png
+├── b2b_results_example.1_SEQ_SOP_psp.png
+└── example_sequences_ignored.fasta
+```
+
 ### Biophysical features predicted from Multiple Sequence Alignment (MSA)
 
 This pipeline provides you predictions of the biophysical features of a MSA, computation of the MSA biophysical and sequence conservation, and 2D visualization of these values.
 
+- Pipeline accession: `nextflow run Bio2Byte/nf-pipelines -r main -main-script b2btools/fromMSA.nf`
 - Input:
   - Either:
     - At Multiple Sequence Alignment file in FASTA format
@@ -203,6 +207,32 @@ This pipeline provides you predictions of the biophysical features of a MSA, com
     - (optional) WebLogo representation of the MSA
     - (optional) Phylogenetic tree in text format
     - (optional) Phylogenetic tree rendered in SVG image format
+
+#### Parameters
+
+- Input/Output:
+  - Sequences file in FASTA format: `--targetSequences`
+    - Description: Sequence must contain at least one protein sequence.
+  - Should pipeline align sequences? `--alignSequences`
+    - Description: If your input file is a set of unaligned sequences, with this flag the pipeline will build a MSA file using [Clustal Omega](https://www.ebi.ac.uk/Tools/msa/clustalo/) before starting the regular workflow. Clustal Omega is a new multiple sequence alignment program that uses seeded guide trees and HMM profile-profile techniques to generate alignments between three or more sequences.
+- Predictions:
+  - EFoldMine - Early folding regions: `--efoldmine`
+  - Disomine - Disordered regions: `--disomine`
+  - ESM Atlas structures: `--fetchStructures`
+    - Description: Resource provided by the "ESM Metagenomic Atlas". Fetching the folding of a sequence runs ESMFold (`esm.pretrained.esmfold_v1`) which provides fast and accurate atomic level structure prediction directly from the individual sequence of a protein.
+  - MSA Logo: `--buildLogo`
+    - Description: Create a Logo representation using [WebLogo](https://weblogo.berkeley.edu/). Sequence logos are a graphical representation of an amino acid or nucleic acid multiple sequence alignment developed by Tom Schneider and Mike Stephens.
+  - Phylogenetic tree: `--buildTree`
+    - Description: [FastTree](http://www.microbesonline.org/fasttree/) infers approximately-maximum-likelihood phylogenetic trees from alignments of protein sequences.
+  - Phylogenetic tree image in SVG format: `--plotTree`
+    - Description: Build a SVG image of the phylogenetic tree. It requires the flag `--buildTree`.
+- Visualizations:
+  - Biophysical features charts: `--plotBiophysicalFeatures`
+    - Description: Include `MatPlotLib` plots in PNG format.
+
+#### Diagram (Mermaid format)
+[![](https://mermaid.ink/img/pako:eNqVVU1v2zAM_SuBTi6QBpbt-OswoGuaYcBaFEtPc3pQbSYWJlmeJbdN0_73KXalxv3a4pNFvkeK1KO0RbkoAKVoxcRdXpJGja5my2qkv9p1nNOSVBWwyaoR_JKo8ujo2YedTNaMqjmRilwbq-dkNw2p8tJafCe7pXBn14HjjGyQ6StnuO-MnIyT2vpiJ8sFY5CrOWVgzcn7ZuxmivyG85YpWjNYwJ8WqhxOGF1XHCp1bXA4u2kpKy7LDRNrqEDR_KoBsH4vq5lQH7r9nv5DrIW1BVndQEFz9ZWKutxImhM2B6LaBqQFTfdLxYPCcdTl_IwdD3uDk2wFKi_PJD9RjMiFatp8xzAEb-8ogddqY5N5-iA5vX85Qc829MXm72_PCzSA6xKlnNFG40SzsXkGZbmj4-Mvj4Qx0375qPdq9rxzaoZh9svpcOkbFfXLwOimX4ZDcGSE06WVJueCVFTRByh08tiIaQjR0lHQdAjsDoMmRmdDxk_g4rYjeLagvlz-keR2wS22q_6xfiWrHcSzyushWgkK3ujz0MS-FWyH1bHEoSECq-_nkzuEHFndd1hYCVZwWsHAF3a-gkrxxhXtN-OdyfheXc7mg4r-g3HxbZ_xiWxwbAevrx0ndvJ6lhk4uR_Rcw_vlPdvibzENzNkh6jXzErfhPJKnD5P6Y4S2FHuEGaAodjdmheEwwBkTniKxohDwwkt9Aux3bmXSJXAYYlS_XtDpP5bVk8a19YFUXBWUH0foFT3A8aItEosNlWO0hVhEgxoRsm6Idxaa1KhdIvuUYqjeJJEIY7dOAq9xI_GaIPSY4wnOE7i6TSMg9gPffw0Rg9C6AjuJPGT0NWc0HXDIEziLtyvztlvArotnfevXPfYPf0FFM4oUg?type=png)](https://mermaid.live/edit#pako:eNqVVU1v2zAM_SuBTi6QBpbt-OswoGuaYcBaFEtPc3pQbSYWJlmeJbdN0_73KXalxv3a4pNFvkeK1KO0RbkoAKVoxcRdXpJGja5my2qkv9p1nNOSVBWwyaoR_JKo8ujo2YedTNaMqjmRilwbq-dkNw2p8tJafCe7pXBn14HjjGyQ6StnuO-MnIyT2vpiJ8sFY5CrOWVgzcn7ZuxmivyG85YpWjNYwJ8WqhxOGF1XHCp1bXA4u2kpKy7LDRNrqEDR_KoBsH4vq5lQH7r9nv5DrIW1BVndQEFz9ZWKutxImhM2B6LaBqQFTfdLxYPCcdTl_IwdD3uDk2wFKi_PJD9RjMiFatp8xzAEb-8ogddqY5N5-iA5vX85Qc829MXm72_PCzSA6xKlnNFG40SzsXkGZbmj4-Mvj4Qx0375qPdq9rxzaoZh9svpcOkbFfXLwOimX4ZDcGSE06WVJueCVFTRByh08tiIaQjR0lHQdAjsDoMmRmdDxk_g4rYjeLagvlz-keR2wS22q_6xfiWrHcSzyushWgkK3ujz0MS-FWyH1bHEoSECq-_nkzuEHFndd1hYCVZwWsHAF3a-gkrxxhXtN-OdyfheXc7mg4r-g3HxbZ_xiWxwbAevrx0ndvJ6lhk4uR_Rcw_vlPdvibzENzNkh6jXzErfhPJKnD5P6Y4S2FHuEGaAodjdmheEwwBkTniKxohDwwkt9Aux3bmXSJXAYYlS_XtDpP5bVk8a19YFUXBWUH0foFT3A8aItEosNlWO0hVhEgxoRsm6Idxaa1KhdIvuUYqjeJJEIY7dOAq9xI_GaIPSY4wnOE7i6TSMg9gPffw0Rg9C6AjuJPGT0NWc0HXDIEziLtyvztlvArotnfevXPfYPf0FFM4oUg)
+
 
 #### Quick examples
 
@@ -241,16 +271,18 @@ YQYL---------------TS
 The NextFlow command line example is:
 
 ```shell
-$ nextflow run fromMSA.nf \
-    -profile standard,withdocker \
-    --targetSequences ./simple_alignment.fasta \
-    --plotBiophysicalFeatures \
-    --buildLogo \
-    --buildTree \
-    --plotTree \
-    --efoldmine \
-    --disomine \
-    --fetchStructures
+$ nextflow run Bio2Byte/nf-pipelines \
+  -r main \
+  -main-script b2btools/fromMSA.nf \
+  -profile standard,withdocker \
+  --targetSequences ./simple_alignment.fasta \
+  --plotBiophysicalFeatures \
+  --buildLogo \
+  --buildTree \
+  --plotTree \
+  --efoldmine \
+  --disomine \
+  --fetchStructures
 ```
 
 This pipeline will generate a compressed file containing:
@@ -312,17 +344,19 @@ FPDHDDCGCLWFYQATWATKCLKEL
 The NextFlow command line example is:
 
 ```shell
-$ nextflow run fromMSA.nf \
-    -profile standard,withdocker \
-    --targetSequences ./10x25.fasta \
-    --plotBiophysicalFeatures \
-    --alignSequences \
-    --buildLogo \
-    --buildTree \
-    --plotTree \
-    --efoldmine \
-    --disomine \
-    --fetchStructures
+$ nextflow run Bio2Byte/nf-pipelines \
+  -r main \
+  -main-script b2btools/fromMSA.nf \
+  -profile standard,withdocker \
+  --targetSequences ./10x25.fasta \
+  --plotBiophysicalFeatures \
+  --alignSequences \
+  --buildLogo \
+  --buildTree \
+  --plotTree \
+  --efoldmine \
+  --disomine \
+  --fetchStructures
 ```
 
 This pipeline will generate a compressed file containing:
@@ -363,31 +397,6 @@ This pipeline will generate a compressed file containing:
 ├── random_sequence_8_consisting_of_25_residues_.pdb
 └── random_sequence_9_consisting_of_25_residues_.pdb
 ```
-
-#### Parameters
-
-- Input/Output:
-  - Sequences file in FASTA format: `--targetSequences`
-    - Description: Sequence must contain at least one protein sequence.
-  - Should pipeline align sequences? `--alignSequences`
-    - Description: If your input file is a set of unaligned sequences, with this flag the pipeline will build a MSA file using [Clustal Omaga](https://www.ebi.ac.uk/Tools/msa/clustalo/) before starting the regular workflow. Clustal Omega is a new multiple sequence alignment program that uses seeded guide trees and HMM profile-profile techniques to generate alignments between three or more sequences.
-- Predictions:
-  - EFoldMine - Early folding regions: `--efoldmine`
-  - Disomine - Disordered regions: `--disomine`
-  - ESM Atlas structures: `--fetchStructures`
-    - Description: Resource provided by the "ESM Metagenomic Atlas". Fetching the folding of a sequence runs ESMFold (`esm.pretrained.esmfold_v1`) which provides fast and accurate atomic level structure prediction directly from the individual sequence of a protein.
-  - MSA Logo: `--buildLogo`
-    - Description: Create a Logo representation using [WebLogo](https://weblogo.berkeley.edu/). Sequence logos are a graphical representation of an amino acid or nucleic acid multiple sequence alignment developed by Tom Schneider and Mike Stephens.
-  - Phylogenetic tree: `--buildTree`
-    - Description: [FastTree](http://www.microbesonline.org/fasttree/) infers approximately-maximum-likelihood phylogenetic trees from alignments of protein sequences.
-  - Phylogenetic tree image in SVG format: `--plotTree`
-    - Description: Build a SVG image of the phylogenetic tree. It requires the flag `--buildTree`.
-- Visualizations:
-  - Biophysical features charts: `--plotBiophysicalFeatures`
-    - Description: Include `MatPlotLib` plots in PNG format.
-
-#### Diagram (Mermaid format)
-[![](https://mermaid.ink/img/pako:eNqVVU1v2zAM_SuBTi6QBpbt-OswoGuaYcBaFEtPc3pQbSYWJlmeJbdN0_73KXalxv3a4pNFvkeK1KO0RbkoAKVoxcRdXpJGja5my2qkv9p1nNOSVBWwyaoR_JKo8ujo2YedTNaMqjmRilwbq-dkNw2p8tJafCe7pXBn14HjjGyQ6StnuO-MnIyT2vpiJ8sFY5CrOWVgzcn7ZuxmivyG85YpWjNYwJ8WqhxOGF1XHCp1bXA4u2kpKy7LDRNrqEDR_KoBsH4vq5lQH7r9nv5DrIW1BVndQEFz9ZWKutxImhM2B6LaBqQFTfdLxYPCcdTl_IwdD3uDk2wFKi_PJD9RjMiFatp8xzAEb-8ogddqY5N5-iA5vX85Qc829MXm72_PCzSA6xKlnNFG40SzsXkGZbmj4-Mvj4Qx0375qPdq9rxzaoZh9svpcOkbFfXLwOimX4ZDcGSE06WVJueCVFTRByh08tiIaQjR0lHQdAjsDoMmRmdDxk_g4rYjeLagvlz-keR2wS22q_6xfiWrHcSzyushWgkK3ujz0MS-FWyH1bHEoSECq-_nkzuEHFndd1hYCVZwWsHAF3a-gkrxxhXtN-OdyfheXc7mg4r-g3HxbZ_xiWxwbAevrx0ndvJ6lhk4uR_Rcw_vlPdvibzENzNkh6jXzErfhPJKnD5P6Y4S2FHuEGaAodjdmheEwwBkTniKxohDwwkt9Aux3bmXSJXAYYlS_XtDpP5bVk8a19YFUXBWUH0foFT3A8aItEosNlWO0hVhEgxoRsm6Idxaa1KhdIvuUYqjeJJEIY7dOAq9xI_GaIPSY4wnOE7i6TSMg9gPffw0Rg9C6AjuJPGT0NWc0HXDIEziLtyvztlvArotnfevXPfYPf0FFM4oUg?type=png)](https://mermaid.live/edit#pako:eNqVVU1v2zAM_SuBTi6QBpbt-OswoGuaYcBaFEtPc3pQbSYWJlmeJbdN0_73KXalxv3a4pNFvkeK1KO0RbkoAKVoxcRdXpJGja5my2qkv9p1nNOSVBWwyaoR_JKo8ujo2YedTNaMqjmRilwbq-dkNw2p8tJafCe7pXBn14HjjGyQ6StnuO-MnIyT2vpiJ8sFY5CrOWVgzcn7ZuxmivyG85YpWjNYwJ8WqhxOGF1XHCp1bXA4u2kpKy7LDRNrqEDR_KoBsH4vq5lQH7r9nv5DrIW1BVndQEFz9ZWKutxImhM2B6LaBqQFTfdLxYPCcdTl_IwdD3uDk2wFKi_PJD9RjMiFatp8xzAEb-8ogddqY5N5-iA5vX85Qc829MXm72_PCzSA6xKlnNFG40SzsXkGZbmj4-Mvj4Qx0375qPdq9rxzaoZh9svpcOkbFfXLwOimX4ZDcGSE06WVJueCVFTRByh08tiIaQjR0lHQdAjsDoMmRmdDxk_g4rYjeLagvlz-keR2wS22q_6xfiWrHcSzyushWgkK3ujz0MS-FWyH1bHEoSECq-_nkzuEHFndd1hYCVZwWsHAF3a-gkrxxhXtN-OdyfheXc7mg4r-g3HxbZ_xiWxwbAevrx0ndvJ6lhk4uR_Rcw_vlPdvibzENzNkh6jXzErfhPJKnD5P6Y4S2FHuEGaAodjdmheEwwBkTniKxohDwwkt9Aux3bmXSJXAYYlS_XtDpP5bVk8a19YFUXBWUH0foFT3A8aItEosNlWO0hVhEgxoRsm6Idxaa1KhdIvuUYqjeJJEIY7dOAq9xI_GaIPSY4wnOE7i6TSMg9gPffw0Rg9C6AjuJPGT0NWc0HXDIEziLtyvztlvArotnfevXPfYPf0FFM4oUg)
 
 <hr>
 
