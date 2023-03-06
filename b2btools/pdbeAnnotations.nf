@@ -34,11 +34,8 @@ with open("${uniprotPdbCsv}", 'r') as csvfile:
                 pdb_list.append(potential_pdbid)
 
 with open("${uniprotPdbCsv.simpleName}.flat.csv", 'w') as csvfile:
-    csvfile.write("pdbid\\n")
-
     for pdb_id in pdb_list:
         csvfile.write(pdb_id + "\\n")
-
     csvfile.flush()
 """
 }
@@ -133,7 +130,7 @@ process predictBiophysicalFeatures {
 }
 
 process formatFunPdbePrediction {
-    // publishDir "${projectDir}/results/${pdbId[1]}${pdbId[2]}/", mode: 'symlink'
+    publishDir "${projectDir}/results/${pdbId[1]}${pdbId[2]}/", mode: 'symlink'
     tag "${pdbId}.funpdbe.json"
     errorStrategy 'ignore'
 
@@ -281,7 +278,8 @@ process validateFunPdbePrediction {
         path entryFunPdbePredictions
 
     output:
-        path "${entryFunPdbePredictions.simpleName}.valid.funpdbe.json", emit: validFunPdbe
+        path "${entryFunPdbePredictions.simpleName}.valid.funpdbe.json", optional: true, emit: validFunPdbe
+        path "${entryFunPdbePredictions.simpleName}.invalid.funpdbe.txt", optional: true, emit: errorsFunPdbe
 
     script:
     """
@@ -297,19 +295,46 @@ process validateFunPdbePrediction {
     json_file_path = "${entryFunPdbePredictions}"
     validator.load_json(json_file_path)
 
+    errors = []
+
     if validator.basic_checks() and validator.validate_against_schema():
         print("Passed data validations")
         residue_indexes = ResidueIndexes(validator.json_data)
         if residue_indexes.check_every_residue():
             print("Passed the index validation")
-            os.symlink("${entryFunPdbePredictions}", "${entryFunPdbePredictions.simpleName}.json")
+            os.symlink("${entryFunPdbePredictions}", "${entryFunPdbePredictions.simpleName}.valid.funpdbe.json")
             exit(0)
         else:
-            print("Failed index validation for %s: %s" % (json_file_path, residue_indexes.mismatches))
+            error_message = "Failed index validation for %s: %s \\n" % (json_file_path, residue_indexes.mismatches)
+            print(error_message)
+            errors.append({ 'type': 'residues', 'message': error_message })
 
-    print("Failed data validations for %s: %s" % (json_file_path, validator.error_log))
+    error_message = "Failed data validations for %s: %s \\n" % (json_file_path, validator.error_log)
+    print(error_message)
+    errors.append({ 'type': 'basic_checks', 'message': error_message })
+
+    with open("${entryFunPdbePredictions.simpleName}.invalid.funpdbe.txt", "w") as file_handler:
+        file_handler.writelines(error_message)
+
     exit(1)
     """
+}
+
+process reportStatsSuccess {
+    publishDir "${projectDir}/results", mode: 'copy'
+
+    input:
+        val validFunPdbeCount
+        val failedFunPdbeCount
+
+    output:
+        path "reportSuccess.txt"
+
+    script:
+        """
+        echo -e "Valid JSON in FunPDBe format: $validFunPdbeCount" > reportSuccess.txt
+        echo -e "Failed JSON in FunPDBe format: $failedFunPdbeCount" >> reportSuccess.txt
+        """
 }
 
 workflow {
@@ -322,4 +347,26 @@ workflow {
     predictBiophysicalFeatures(buildFastaFromPdb.out.entrySequencesTuple)
     formatFunPdbePrediction(predictBiophysicalFeatures.out.entryPredictionsTuple)
     validateFunPdbePrediction(formatFunPdbePrediction.out.entryFunPdbePredictions)
+
+    // allValidFunPdbeFiles = validateFunPdbePrediction.out.validFunPdbe.collect()
+    // allFailedFunPdbeFiles = validateFunPdbePrediction.out.errorsFunPdbe.collect()
+
+    // reportStatsSuccess(
+    //     allValidFunPdbeFiles.count(),
+    //     allFailedFunPdbeFiles.count(),
+    // )
+
+    validateFunPdbePrediction.out.validFunPdbe
+        .map { it.simpleName }
+        .collectFile(name: "${projectDir}/results/allValidFunPdbeFiles.txt", newLine: true)
+        .subscribe {
+            println "Valid entries are saved to file: $it"
+        }
+
+    validateFunPdbePrediction.out.errorsFunPdbe
+        .map { it.simpleName }
+        .collectFile(name: "${projectDir}/results/allFailedFunPdbeFiles.txt", newLine: true)
+        .subscribe {
+            println "Failed entries are saved to file: $it"
+        }
 }
