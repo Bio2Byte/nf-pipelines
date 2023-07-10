@@ -13,3 +13,4 @@ diagram*.png*.*
 flowchart*.png*
 flowchart*.png*.*
 *.tar.gz
+*.nflog
