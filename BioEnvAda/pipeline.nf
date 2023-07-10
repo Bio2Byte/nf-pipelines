@@ -211,7 +211,7 @@ workflow {
         iqtreeFiles = Channel.empty()
 
         if (params.plotTree) {
-            plotPhylogeneticTree(phylogeneticTree, params.plotTree )
+            plotPhylogeneticTree(phylogeneticTree, 0 )
             plottedPhylogeneticTree = plotPhylogeneticTree.out.treePlot
         } else {
             println "Skipping Phylogenetic tree plot from MSA: ${targetSequencesFile}"
@@ -224,7 +224,7 @@ workflow {
         iqtreeFiles = buildPhylogeneticTreeEvol.out.iqtreefiles
 
         if (params.plotTree) {
-            plotPhylogeneticTree(phylogeneticTree, params.plotTree)
+            plotPhylogeneticTree(phylogeneticTree, 1)
             plottedPhylogeneticTree = plotPhylogeneticTree.out.treePlot
         } else {
             println "Skipping Phylogenetic tree plot from MSA: ${targetSequencesFile}"

@@ -9,6 +9,7 @@ form = 0
 if plot != 'true':
     form = int(plot)
 
+print (form)
 
 t=Tree(tree, format=form)
 image_name = tree+'.png'

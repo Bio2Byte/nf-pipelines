@@ -33,7 +33,7 @@ def tree_plot(tree, model):
         modname = model.replace(".", "_")
         hist=model.split(".",1)
 
-        image_name = modname+"_dnds.svg"
+        image_name = modname+"_dnds.pdf"
         plot_filename = os.path.join("plots", image_name)
 
         #tree.render(plot_filename, w=18000, tree_style=ts, layout=evol_clean_layout, histfaces=[model])

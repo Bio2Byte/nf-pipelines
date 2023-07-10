@@ -2,6 +2,7 @@
 now=`date +"%s"`
 data=example 
 ~/nextflow run pipeline.nf \
+    -resume \
     -profile standard,withdocker \
     --targetSequences sequences/$data.fasta  \
     --alignSequences \
